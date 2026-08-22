@@ -1,25 +1,23 @@
 #pragma once
 #include <stdint.h>
 
-// Definice stavů pro dlouhodobou indikaci (např. vázané na stav robota)
+// Persistent indication states (linked to active robot drive modes)
 enum class LEDIndication : uint8_t {
     Off = 0,
     Idle,
     Forward,
-    Spin,
+    Spin,        // Future: MeltyBrain visual sync mode
     Failsafe,
     LowBattery
-    // možnost přidat další do kapacity 15+
 };
 
-// Definice stavů pro krátkodobé prioritní animace
+// Short-term priority animation states
 enum class LEDAnimation : uint8_t {
     None = 0,
     Bootup,
     ModeChanged,
     ErrorAlert,
     TelemetrySent
-    // možnost přidat další
 };
 
 class LEDHandler {
@@ -28,29 +26,30 @@ public:
     
     void init();
     
-    // Nastaví trvalý mód indikace (voláno např. při přepnutí režimu ModeHandlerem)
+    // Set persistent mode (e.g., called upon ModeHandler state change)
     void setIndication(LEDIndication mode);
     
-    // Spustí krátkodobou animaci, která dočasně překryje indikaci
+    // Play a priority animation (temporarily overrides base indication)
     void playAnimation(LEDAnimation mode);
     
-    // Nutno volat cyklicky ve 3. vlákně (např. každých 10-20 ms)
+    // Future: void setMeltySync(uint32_t periodUs, uint32_t phaseOffsetUs, ...);
+    
+    // Must be called cyclically in the dedicated LED thread
     void update(uint32_t currentMs);
-
 
 private:
     uint8_t _ledPin;
     
-    // Uložení aktuálních stavů
+    // Active states
     LEDIndication _currentIndication;
     LEDAnimation _currentAnimation;
     
-    // Stavové proměnné pro animace
+    // Animation timers
     bool _animationActive;
     uint32_t _animationStartMs;
     uint32_t _animationDurationMs;
     
-    // Interní proměnné pro blikání/časování uvnitř metody update()
+    // Internal blinking variables
     uint32_t _lastToggleMs;
     bool _ledState;
     uint8_t _stepCounter;

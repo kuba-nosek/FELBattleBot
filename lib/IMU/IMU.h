@@ -15,7 +15,7 @@ public:
     bool isAvailable() const;
     bool readData(IMUData& dataOut);
     
-    // Zápis do konfiguračních registrů (např. pro změnu rozsahu g) za běhu
+    // Write to config registers (e.g., dynamically changing g-range limits)
     void writeConfig(uint8_t reg, uint8_t value);
 
 private:

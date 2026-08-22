@@ -2,20 +2,21 @@
 #include <Arduino.h>
 
 namespace {
-    // Časování RMT pro DShot300 na ESP32 (80MHz APB)[cite: 3]
+    // --- DShot300 RMT Timing (ESP32 80MHz APB) ---[cite: 3]
     constexpr uint8_t RMT_CLOCK_DIVIDER = 2;
     constexpr uint16_t BIT_TOTAL_TICKS = 133;
     constexpr uint16_t ZERO_HIGH_TICKS = 50;
     constexpr uint16_t ONE_HIGH_TICKS = 100;
 
-    // Hodnoty protokolu DShot[cite: 10]
+    // --- DShot Protocol Constants ---[cite: 10]
     constexpr uint16_t DSHOT_MOTOR_STOP = 0;
     constexpr uint16_t DSHOT_3D_MODE_ON = 10;
     constexpr uint16_t DSHOT_REVERSE_MIN = 48;
     constexpr uint16_t DSHOT_FORWARD_MIN = 1048;
     constexpr int16_t SPEED_SCALE = 1000;
 
-    // Bezpečnostní prodleva pro Direction Change Guard
+    // --- Safety Configuration ---
+    // Delay to prevent mechanical gearbox damage on sudden reversal
     constexpr uint32_t DIRECTION_CHANGE_STOP_MS = 150; 
 }
 
@@ -24,10 +25,15 @@ Motor::Motor(uint8_t gpioPin, rmt_channel_t rmtChannel, bool reversed)
       _initialized(false), _lastDirection(0), _atZero(true), _zeroSinceMs(0) {
 }
 
+// ====================================================================
+// INITIALIZATION & ARMING
+// ====================================================================
+
 bool Motor::init() {
     pinMode(_gpioPin, OUTPUT);
     digitalWrite(_gpioPin, LOW);
 
+    // Configure ESP32 RMT peripheral for DShot TX
     rmt_config_t config{};
     config.rmt_mode = RMT_MODE_TX;
     config.channel = _rmtChannel;
@@ -53,24 +59,29 @@ bool Motor::init() {
 bool Motor::arm() {
     if (!_initialized) return false;
     
-    // Udržení nuly pro detekci ESC
+    // Hold zero to allow ESC to initialize
     for(int i = 0; i < 500; i++) {
         writeDshotPacket(DSHOT_MOTOR_STOP, false);
         delay(1);
     }
 
-    // Odeslání příkazu pro 3D režim (musí mít nastavený requestTelemetry bit)
+    // Send 3D Mode command (requires telemetry bit set)
     for (uint8_t repeat = 0; repeat < 10; ++repeat) {
         writeDshotPacket(DSHOT_3D_MODE_ON, true);
         delay(1);
     }
 
+    // Return to zero before accepting commands
     for(int i = 0; i < 50; i++) {
         writeDshotPacket(DSHOT_MOTOR_STOP, false);
         delay(1);
     }
     return true;
 }
+
+// ====================================================================
+// RUNTIME CONTROL LOGIC
+// ====================================================================
 
 void Motor::setReversed(bool reversed) {
     _reversed = reversed;
@@ -89,10 +100,10 @@ void Motor::stop() {
 bool Motor::setSpeed(int16_t speed, uint32_t currentMs, bool requestTelemetry) {
     if (!_initialized) return false;
 
-    // 1. Aplikace polarity
+    // 1. Apply orientation polarity
     int16_t targetSpeed = _reversed ? -speed : speed;
 
-    // 2. Direction Change Guard (ochrana převodovky)
+    // 2. Direction Change Guard (Gearbox Protection)
     if (targetSpeed == 0) {
         if (!_atZero) {
             _atZero = true;
@@ -107,6 +118,7 @@ bool Motor::setSpeed(int16_t speed, uint32_t currentMs, bool requestTelemetry) {
         } else if (requestedDirection == _lastDirection) {
             _atZero = false;
         } else {
+            // Force zero-speed hold period on direction swap
             if (!_atZero) {
                 _atZero = true;
                 _zeroSinceMs = currentMs;
@@ -120,11 +132,11 @@ bool Motor::setSpeed(int16_t speed, uint32_t currentMs, bool requestTelemetry) {
         }
     }
 
-    // 3. Omezení na maximální limity
+    // 3. Constrain to max operational limits
     if (targetSpeed > SPEED_SCALE) targetSpeed = SPEED_SCALE;
     if (targetSpeed < -SPEED_SCALE) targetSpeed = -SPEED_SCALE;
 
-    // 4. Převod na DShot hodnotu[cite: 4]
+    // 4. Convert standardized speed to raw DShot value[cite: 4]
     uint16_t dshotValue = DSHOT_MOTOR_STOP;
     if (targetSpeed != 0) {
         uint16_t magnitude = targetSpeed < 0 ? -targetSpeed : targetSpeed;
@@ -132,11 +144,16 @@ bool Motor::setSpeed(int16_t speed, uint32_t currentMs, bool requestTelemetry) {
                                      : (DSHOT_REVERSE_MIN + magnitude - 1);
     }
 
+    // Future: Handle ERPM telemetry readbacks if requestTelemetry is true
     return writeDshotPacket(dshotValue, requestTelemetry);
 }
 
+// ====================================================================
+// HARDWARE PROTOCOL LAYER
+// ====================================================================
+
 bool Motor::writeDshotPacket(uint16_t value, bool requestTelemetry) {
-    // Vytvoření DShot paketu včetně CRC[cite: 4]
+    // Construct DShot payload and calculate CRC[cite: 4]
     uint16_t payload = (value << 1) | (requestTelemetry ? 1U : 0U);
     uint16_t checksumData = payload;
     uint16_t checksum = 0;
@@ -155,6 +172,7 @@ bool Motor::writeDshotPacket(uint16_t value, bool requestTelemetry) {
 }
 
 void Motor::prepareItems(uint16_t packet, rmt_item32_t* items) {
+    // Map bits to RMT signal durations
     for (size_t index = 0; index < 16; ++index) {
         bool one = (packet & (0x8000U >> index)) != 0;
         uint16_t highTicks = one ? ONE_HIGH_TICKS : ZERO_HIGH_TICKS;

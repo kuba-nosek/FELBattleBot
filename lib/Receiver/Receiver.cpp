@@ -2,13 +2,13 @@
 #include <Arduino.h>
 
 namespace {
-    HardwareSerial crsfSerial(1); // Použití UART1 pro CRSF
+    HardwareSerial crsfSerial(1); // UART1 mapping for CRSF
     
-    // Konfigurace
+    // --- Configuration ---
     constexpr uint32_t CRSF_BAUD_RATE = 420000;
     constexpr uint32_t CRSF_FAILSAFE_TIMEOUT_MS = 500;
     
-    // Konstanty protokolu CRSF[cite: 1, 2, 7, 8]
+    // --- CRSF Protocol Constants ---[cite: 1, 2, 7, 8]
     constexpr uint8_t CRSF_FLIGHT_CONTROLLER_ADDRESS = 0xC8;
     constexpr uint8_t CRSF_RECEIVER_ADDRESS = 0xEC;
     constexpr uint8_t CRSF_TRANSMITTER_ADDRESS = 0xEE;
@@ -16,7 +16,7 @@ namespace {
     constexpr uint8_t LINK_STATISTICS = 0x14;
     constexpr uint8_t FLIGHT_MODE_FRAME_TYPE = 0x21;
 
-    // Pomocná funkce pro výpočet CRC8 (DVB-S2)[cite: 1]
+    // Helper: DVB-S2 CRC8 checksum calculator[cite: 1]
     uint8_t crc8(const uint8_t *data, size_t length) {
         uint8_t crc = 0;
         for (size_t i = 0; i < length; ++i) {
@@ -28,7 +28,7 @@ namespace {
         return crc;
     }
 
-    // Převod surových dat na mikrosekundy (988 - 2012 us)[cite: 1]
+    // Helper: Map raw 11-bit CRSF data to standard RC microseconds (988 - 2012 us)[cite: 1]
     uint16_t rawToMicroseconds(const uint16_t raw) {
         int32_t scaled = 988 + (static_cast<int32_t>(raw) - 172) * 1024 / 1639;
         if (scaled < 988) return 988;
@@ -42,7 +42,7 @@ Receiver::Receiver(uint8_t rxPin, uint8_t txPin)
       _connected(false), _disconnectCallback(nullptr) {
     _position = 0;
     _expectedSize = 0;
-    for (int i = 0; i < 16; i++) _channels[i] = 1500; // Výchozí neutrální poloha
+    for (int i = 0; i < 16; i++) _channels[i] = 1500; // Initialize channels to neutral
 }
 
 void Receiver::connect() {
@@ -65,25 +65,33 @@ ReceiverStats Receiver::getStatistics() const {
     return _stats;
 }
 
+// ====================================================================
+// CONTINUOUS POLLING & FAILSAFE
+// ====================================================================
+
 void Receiver::update(uint32_t currentMs) {
-    // Čtení dat ze sériové linky
+    // Process incoming serial buffer
     size_t bytesProcessed = 0;
     while (crsfSerial.available() > 0 && bytesProcessed < 256) {
         processByte(crsfSerial.read());
         bytesProcessed++;
     }
 
-    // Failsafe kontrola (ztráta signálu)[cite: 5]
+    // Trigger failsafe if no valid frames received within timeout[cite: 5]
     if (_connected && (currentMs - _lastValidFrameMs > CRSF_FAILSAFE_TIMEOUT_MS)) {
         _connected = false;
         if (_disconnectCallback != nullptr) {
-            _disconnectCallback(); // Zavolání bezpečnostní rutiny ve vyšší vrstvě
+            _disconnectCallback(); // Escalate to higher logic layer
         }
     }
 }
 
+// ====================================================================
+// CRSF FRAME PARSER STATE MACHINE
+// ====================================================================
+
 void Receiver::processByte(uint8_t byte) {
-    // Parsování adresy[cite: 1]
+    // 1. Sync & Device Address[cite: 1]
     if (_position == 0) {
         if (byte == CRSF_FLIGHT_CONTROLLER_ADDRESS || 
             byte == CRSF_RECEIVER_ADDRESS || 
@@ -93,10 +101,10 @@ void Receiver::processByte(uint8_t byte) {
         return;
     }
 
-    // Parsování délky[cite: 1]
+    // 2. Frame Length[cite: 1]
     if (_position == 1) {
         if (byte < 2 || byte > 62) {
-            _position = 0;
+            _position = 0; // Invalid size, reset parser
             processByte(byte);
             return;
         }
@@ -105,18 +113,18 @@ void Receiver::processByte(uint8_t byte) {
         return;
     }
 
-    // Ukládání payloadu[cite: 1]
+    // 3. Accumulate Payload[cite: 1]
     _frame[_position++] = byte;
     if (_position < _expectedSize) {
         return;
     }
 
-    // Validace CRC[cite: 1]
+    // 4. Validate CRC and Decode[cite: 1]
     size_t crcIndex = _expectedSize - 1;
     if (crc8(&_frame[2], crcIndex - 2) == _frame[crcIndex]) {
         uint8_t frameType = _frame[2];
         
-        // Dekódování RC kanálů[cite: 1]
+        // Decode RC Joystick/Switch Data[cite: 1]
         if (frameType == RC_CHANNELS_PACKED) {
             const uint8_t *payload = &_frame[3];
             uint32_t bitBuffer = 0;
@@ -136,7 +144,7 @@ void Receiver::processByte(uint8_t byte) {
             _lastValidFrameMs = millis();
             _connected = true;
         }
-        // Dekódování telemetrie (Link Statistics)[cite: 1]
+        // Decode RF Link Statistics[cite: 1]
         else if (frameType == LINK_STATISTICS) {
             const uint8_t *payload = &_frame[3];
             _stats.activeRssiDbm = -static_cast<int16_t>(payload[4] == 0 ? payload[0] : payload[1]);
@@ -144,20 +152,27 @@ void Receiver::processByte(uint8_t byte) {
         }
     }
     
-    _position = 0; // Reset parseru
+    _position = 0; // Reset parser for next frame
 }
 
+// ====================================================================
+// TELEMETRY TRANSMISSION
+// ====================================================================
+
 void Receiver::sendTelemetry(const char* statusText, uint32_t currentMs) {
-    if (currentMs - _lastTelemetryMs < 500) return; // Omezení na 2 Hz pro šetření pásma
+    // Rate limit to 2 Hz to prevent bandwidth saturation
+    if (currentMs - _lastTelemetryMs < 500) return; 
 
     if (statusText == nullptr) return;
 
     size_t textLength = 0;
     while (textLength < 20 && statusText[textLength] != '\0') textLength++;
 
+    // Build standard Flight Mode text frame
+    // Future: Expand to send Battery Voltage or Melty Brain RPM data back to the radio
     uint8_t frame[32];
     frame[0] = CRSF_FLIGHT_CONTROLLER_ADDRESS;
-    frame[1] = textLength + 3; // Typ (1) + Text (X) + NUL (1) + CRC (1)[cite: 2]
+    frame[1] = textLength + 3; // Type (1) + Text (X) + NUL (1) + CRC (1)[cite: 2]
     frame[2] = FLIGHT_MODE_FRAME_TYPE;
 
     for (size_t i = 0; i < textLength; ++i) {

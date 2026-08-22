@@ -13,7 +13,7 @@ namespace RobotConfig {
     
     constexpr uint8_t PIN_LED     = 10; 
 
-    // SPI Sběrnice[cite: 11]
+    // SPI Bus
     constexpr uint8_t PIN_SPI_SCK  = 8;  
     constexpr uint8_t PIN_SPI_MISO = 6;  
     constexpr uint8_t PIN_SPI_MOSI = 7;  
@@ -21,7 +21,7 @@ namespace RobotConfig {
     constexpr uint8_t PIN_SPI_CS2  = 5;  
 
     // ==========================================
-    // KALIBRACE SENZORŮ (v jednotkách g)[cite: 11]
+    // IMU calibration [g]
     // ==========================================
     constexpr float IMU1_OFFSET_X = 0.08f;
     constexpr float IMU1_OFFSET_Y = 0.57f;
@@ -32,9 +32,9 @@ namespace RobotConfig {
     constexpr float IMU2_OFFSET_Z = 1.94f;
 
     // ==========================================
-    // ČASOVÁNÍ RTOS VLÁKEN
+    // RTOS thread timing
     // ==========================================
-    constexpr uint32_t TASK_CONTROL_HZ = 100; // Frekvence řídicí smyčky (100 Hz = 10 ms)
-    constexpr uint32_t TASK_RECEIVER_MS = 2;  // Interval čtení UARTu
-    constexpr uint32_t TASK_LED_MS = 20;      // Interval aktualizace LED
+    constexpr uint32_t TASK_CONTROL_HZ = 100; // Main thread frequency (100 Hz = 10 ms)
+    constexpr uint32_t TASK_RECEIVER_MS = 2;  // UART readout interval
+    constexpr uint32_t TASK_LED_MS = 20;      // LED update interval
 }

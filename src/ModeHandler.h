@@ -10,9 +10,9 @@ enum class DriveModeType {
     Spin
 };
 
-// Struktura pro kompletní předávání dat
+// Shared data context structure
 struct RobotContext {
-    // --- VSTUPY ---
+    // --- INPUTS ---
     bool isConnected;
     int16_t throttle;
     int16_t steering;
@@ -20,13 +20,13 @@ struct RobotContext {
     IMUData imu1;
     IMUData imu2;
 
-    // --- VÝSTUPY ---
+    // --- OUTPUTS ---
     int16_t leftMotorSpeed;
     int16_t rightMotorSpeed;
     LEDIndication ledIndication;
 };
 
-// Rozhraní pro všechny režimy
+// Base interface for drive modes
 class IRobotMode {
 public:
     virtual ~IRobotMode() = default;
@@ -34,7 +34,7 @@ public:
     virtual void calculateResponse(RobotContext& ctx) = 0; 
 };
 
-// Deklarace konkrétních režimů
+// Specific mode declarations
 class IdleMode : public IRobotMode {
 public:
     void init() override;
@@ -53,7 +53,7 @@ public:
     void calculateResponse(RobotContext& ctx) override;
 };
 
-// Správce režimů
+// State manager class
 class ModeHandler {
 public:
     ModeHandler();

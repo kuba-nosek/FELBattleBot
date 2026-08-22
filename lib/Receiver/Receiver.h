@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// Definice typu pro callback funkci při ztrátě spojení
+// Signal loss callback signature
 typedef void (*DisconnectCallback)();
 
 struct ReceiverStats {
@@ -35,12 +35,11 @@ private:
     bool _connected;
     DisconnectCallback _disconnectCallback;
     
-    // --- Proměnné nutné pro dekódování CRSF rádiového paketu ---
+    // --- Internal CRSF parser state ---
     uint8_t _frame[64];
     size_t _position;
     size_t _expectedSize;
     uint16_t _channels[16];
-    // -----------------------------------------------------------
-
+    
     void processByte(uint8_t byte);
 };

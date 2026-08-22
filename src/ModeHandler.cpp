@@ -4,15 +4,15 @@
 // IDLE MODE
 // ====================================================================
 void IdleMode::init() {
-    // Kód vykonaný jednorázově při přepnutí do režimu Idle
+    // One-time initialization for Idle mode
 }
 
 void IdleMode::calculateResponse(RobotContext& ctx) {
-    // V nečinnosti (nebo při ztrátě signálu) motory stojí
+    // Stop motors during idle or signal loss
     ctx.leftMotorSpeed = 0;
     ctx.rightMotorSpeed = 0;
 
-    // Nastavení LED indikace podle stavu spojení
+    // Set LED indication based on connection
     if (!ctx.isConnected) {
         ctx.ledIndication = LEDIndication::Failsafe;
     } else {
@@ -24,14 +24,14 @@ void IdleMode::calculateResponse(RobotContext& ctx) {
 // FORWARD MODE
 // ====================================================================
 void ForwardMode::init() {
-    // Kód vykonaný jednorázově při přepnutí do režimu Forward
+    // One-time initialization for Forward mode
 }
 
 void ForwardMode::calculateResponse(RobotContext& ctx) {
     int32_t left = ctx.throttle;
     int32_t right = ctx.throttle;
 
-    // Aplikace diferenciálního řízení (mix plynu a zatáčení)
+    // Apply differential steering (throttle/steering mix)
     if (ctx.steering < 0) {
         left = left * (1000 + ctx.steering) / 1000;
     } else if (ctx.steering > 0) {
@@ -41,7 +41,7 @@ void ForwardMode::calculateResponse(RobotContext& ctx) {
     ctx.leftMotorSpeed = static_cast<int16_t>(left);
     ctx.rightMotorSpeed = static_cast<int16_t>(right);
     
-    // Nastavení specifické indikace pro jízdu
+    // Forward LED indication
     ctx.ledIndication = LEDIndication::Forward;
 }
 
@@ -49,20 +49,20 @@ void ForwardMode::calculateResponse(RobotContext& ctx) {
 // SPIN MODE
 // ====================================================================
 void SpinMode::init() {
-    // Kód vykonaný jednorázově při přepnutí do režimu Spin
+    // One-time initialization for Spin mode
 }
 
 void SpinMode::calculateResponse(RobotContext& ctx) {
-    // V režimu Spin se motory točí stejnou rychlostí proti sobě
+    // Tank spin: motors rotate in opposite directions (Future: Melty translation here)
     ctx.leftMotorSpeed = ctx.throttle;
     ctx.rightMotorSpeed = -ctx.throttle;
 
-    // Nastavení specifické indikace pro rotaci
+    // Spin LED indication (Future: Melty Brain strobe sync)
     ctx.ledIndication = LEDIndication::Spin;
 }
 
 // ====================================================================
-// MODE HANDLER (Správce režimů)
+// MODE HANDLER (State Manager)
 // ====================================================================
 ModeHandler::ModeHandler() 
     : _currentMode(&_idleMode), _currentModeType(DriveModeType::Idle) {
@@ -88,7 +88,7 @@ void ModeHandler::setMode(DriveModeType newMode) {
             break;
     }
 
-    // Provedení inicializační rutiny nově zvoleného režimu. Operátor -> pro ukazatel.
+    // Trigger initialization of the new active mode
     _currentMode->init();
 }
 

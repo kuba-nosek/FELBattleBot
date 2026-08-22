@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 
-// Vložení vlastních knihoven
+// Custom libraries
 #include "config.h"
 #include "Motor.h"
 #include "IMU.h"
@@ -13,7 +13,7 @@
 
 using namespace RobotConfig;
 
-// --- Inicializace globálních objektů ---
+// --- Global hardware instances ---
 Motor motorLeft(PIN_MOTOR_L, RMT_CHANNEL_0, false);
 Motor motorRight(PIN_MOTOR_R, RMT_CHANNEL_1, true);
 
@@ -24,12 +24,12 @@ Receiver receiver(PIN_CRSF_RX, PIN_CRSF_TX);
 LEDHandler ledHandler(PIN_LED);
 ModeHandler modeHandler;
 
-// --- Prototypy úloh FreeRTOS ---
+// --- FreeRTOS task prototypes ---
 void mainThread(void *pvParameters);
 void ReceiverThread(void *pvParameters);
 void LEDThread(void *pvParameters);
 
-// --- Bezpečnostní callback ---
+// --- Safety failsafe callback ---
 void onFailsafe() {
     ledHandler.playAnimation(LEDAnimation::ErrorAlert);
     modeHandler.setMode(DriveModeType::Idle);
@@ -40,56 +40,56 @@ void onFailsafe() {
 void setup() {
     Serial.begin(115200);
 
-    // Inicializace SPI pro IMU
+    // Initialize SPI for IMUs
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
     SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE0));
 
-    // Inicializace základního hardwaru
+    // Initialize core peripherals
     ledHandler.init();
     receiver.connect();
     receiver.onDisconnect(onFailsafe);
 
-    // --- KONTROLA INICIALIZACE ---
+    // --- HARDWARE VERIFICATION ---
     bool hardwareOk = true;
 
-    // Pokud selže inicializace motorů, hardwareOk bude false
+    // Verify motor ESCs
     hardwareOk &= motorLeft.init();
     hardwareOk &= motorRight.init();
 
-    // Pokusíme se inicializovat senzory
+    // Verify IMU sensors
     bool imu1Ok = imu1.init();
     bool imu2Ok = imu2.init();
     
     hardwareOk &= (imu1Ok && imu2Ok);
 
     if (!hardwareOk) {
-        Serial.println("KRITICKÁ CHYBA: Hardware se nepodařilo inicializovat!");
+        Serial.println("CRITICAL ERROR: Hardware initialization failed!");
         
         while (true) {
-            // Rozblikáme LED jako indikaci hardwarové chyby (např. 100ms pulzy)
+            // Infinite loop on hardware failure with LED alert
             ledHandler.playAnimation(LEDAnimation::ErrorAlert);
             ledHandler.update(millis());
             delay(10);
         }
     }
 
-    // Pokud je vše v pořádku, můžeme motory odjistit
+    // Arm motors if hardware is OK
     motorLeft.arm();
     motorRight.arm();
 
-    // Vytvoření RTOS vláken
+    // Spawn FreeRTOS tasks
     xTaskCreate(mainThread, "ControlLoop", 4096, NULL, 3, NULL);
     xTaskCreate(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL);
     xTaskCreate(LEDThread, "LED_Control", 2048, NULL, 1, NULL);
 }
 
 void loop() {
-    // Smazání výchozí úlohy, uvolnění paměti.
+    // Delete default Arduino task to free memory
     vTaskDelete(NULL);
 }
 
 // ====================================================================
-// IMPLEMENTACE VLÁKEN
+// TASK IMPLEMENTATIONS
 // ====================================================================
 
 void mainThread(void *pvParameters) {
@@ -100,18 +100,18 @@ void mainThread(void *pvParameters) {
   while (true) {
     uint32_t currentMs = millis();
 
-    // Načtení dat z přijímače
+    // 1. READ INPUTS
     ctx.isConnected = receiver.isConnected();
     if (ctx.isConnected) {
       ctx.throttle = SignalProcessing::normalizeChannel(receiver.getChannel(1));
       ctx.steering = SignalProcessing::normalizeChannel(receiver.getChannel(0));
       ctx.requestedMode = SignalProcessing::decodeMode(receiver.getChannel(7));
     } else {
-      // Vynucení idle módu při ztrátě signálu
+      // Force Idle mode on signal loss
       ctx.requestedMode = DriveModeType::Idle;
     }
 
-    // Načtení dat z akcelerometrů
+    // Read accelerometer data (Future: Melty Brain math basis)
     if (imu1.isAvailable()) {
       imu1.readData(ctx.imu1);
     }
@@ -119,26 +119,25 @@ void mainThread(void *pvParameters) {
       imu2.readData(ctx.imu2);
     }
 
-    // 2. KONTROLA ZMĚNY MÓDU
+    // 2. MODE SWITCH CHECK
     if (ctx.requestedMode != modeHandler.getCurrentModeType()) {
       modeHandler.setMode(ctx.requestedMode);
       ledHandler.playAnimation(LEDAnimation::ModeChanged);
     }
 
-    // 3. VÝPOČET ODEZVY
-    // Přesně podle vašeho návrhu: zavolání metody aktuálního módu s předáním struktury
+    // 3. CALCULATE RESPONSE
+    // Execute active mode logic via RobotContext
     modeHandler.getCurrentMode()->calculateResponse(ctx);
 
-    // 4. ZÁPIS DO HARDWARU
-    // Zápis rychlostí do motorů
+    // 4. HARDWARE OUTPUT
+    // Apply motor speeds
     motorLeft.setSpeed(ctx.leftMotorSpeed, currentMs);
     motorRight.setSpeed(ctx.rightMotorSpeed, currentMs);
     
-    // Zápis požadovaného stavu do LED handleru
-    // (Případné animace řeší LEDThread automaticky přes tento nastavený základní stav)
+    // Update LED state (Animations are handled dynamically by LEDThread)
     ledHandler.setIndication(ctx.ledIndication);
 
-    // Opakování ve fixním intervalu
+    // Maintain strict loop frequency
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
 }

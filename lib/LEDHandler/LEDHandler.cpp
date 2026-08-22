@@ -17,7 +17,7 @@ void LEDHandler::setIndication(LEDIndication mode) {
     if (_currentIndication == mode) return;
     
     _currentIndication = mode;
-    // Reset kroků pro nový vzor, pokud nehraje animace
+    // Reset sequence steps if no overriding animation is active
     if (!_animationActive) {
         _stepCounter = 0;
         _ledState = false;
@@ -30,9 +30,9 @@ void LEDHandler::playAnimation(LEDAnimation mode) {
     _animationActive = true;
     _animationStartMs = millis();
     _stepCounter = 0;
-    _ledState = true; // Obvykle animace začíná svícením
+    _ledState = true; // Animations typically start with LED ON
     
-    // Zde definujete, jak dlouho má konkrétní animace blokovat indikaci
+    // Set durations for specific animation blocks
     switch (mode) {
         case LEDAnimation::Bootup:
             _animationDurationMs = 2000;
@@ -50,21 +50,21 @@ void LEDHandler::playAnimation(LEDAnimation mode) {
 }
 
 void LEDHandler::update(uint32_t currentMs) {
-    // 1. Kontrola expirace animace
+    // 1. Check animation expiration
     if (_animationActive) {
         if (currentMs - _animationStartMs >= _animationDurationMs) {
             _animationActive = false;
             _currentAnimation = LEDAnimation::None;
-            _stepCounter = 0; // Příprava na návrat k indikaci
+            _stepCounter = 0; // Prepare return to base indication
         }
     }
 
-    // 2. Vyhodnocení vzoru blikání (buď animace nebo indikace)
+    // 2. Evaluate blinking pattern
     if (_animationActive) {
-        // --- LOGIKA PRO ANIMACE ---
+        // --- ANIMATION LOGIC ---
         switch (_currentAnimation) {
             case LEDAnimation::ModeChanged:
-                // Příklad: Rychlé probliknutí (50 ms on, 50 ms off)
+                // Fast toggle (50ms ON / 50ms OFF)
                 if (currentMs - _lastToggleMs >= 50) {
                     _ledState = !_ledState;
                     digitalWrite(_ledPin, _ledState);
@@ -72,12 +72,12 @@ void LEDHandler::update(uint32_t currentMs) {
                 }
                 break;
                 
-            // Zde doplníte další vzory pro animace...
+            // Future: Add additional animation sequences here
             default:
                 break;
         }
     } else {
-        // --- LOGIKA PRO INDIKACI ---
+        // --- INDICATION LOGIC ---
         switch (_currentIndication) {
             case LEDIndication::Off:
                 if (_ledState) {
@@ -87,7 +87,7 @@ void LEDHandler::update(uint32_t currentMs) {
                 break;
 
             case LEDIndication::Idle:
-                // Příklad: Pomalé pulzování / blikání (500 ms on, 500 ms off)
+                // Slow pulse (500ms ON / 500ms OFF)
                 if (currentMs - _lastToggleMs >= 500) {
                     _ledState = !_ledState;
                     digitalWrite(_ledPin, _ledState);
@@ -96,14 +96,14 @@ void LEDHandler::update(uint32_t currentMs) {
                 break;
 
             case LEDIndication::Forward:
-                // Příklad: Trvalé svícení
+                // Solid ON
                 if (!_ledState) {
                     _ledState = true;
                     digitalWrite(_ledPin, HIGH);
                 }
                 break;
 
-            // Zde doplníte vzory pro Idle, Spin, Failsafe...
+            // Future: Add patterns for Failsafe, LowBattery, and Spin (Melty Brain Sync)
             default:
                 break;
         }

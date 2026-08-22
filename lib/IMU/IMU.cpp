@@ -3,7 +3,7 @@
 #include <SPI.h>
 
 namespace {
-    // Registrová mapa H3LIS331DL[cite: 11]
+    // H3LIS331DL register map
     constexpr uint8_t WHO_AM_I_REG = 0x0F;
     constexpr uint8_t CTRL_REG1    = 0x20;
     constexpr uint8_t CTRL_REG2    = 0x21;
@@ -26,11 +26,11 @@ bool IMU::init() {
     uint8_t id = readRegister(WHO_AM_I_REG);
     
     if (id == EXPECTED_ID) {
-        // Výchozí nastavení převzaté z původního kódu[cite: 11]
-        writeConfig(CTRL_REG1, 0x27); // 50 Hz, povoleny osy X,Y,Z
+        // Default configuration
+        writeConfig(CTRL_REG1, 0x27); // 50 Hz, XYZ axes enabled
         writeConfig(CTRL_REG2, 0x00);
         writeConfig(CTRL_REG3, 0x00);
-        writeConfig(CTRL_REG4, 0x80); // BDU aktivní, +-100g
+        writeConfig(CTRL_REG4, 0x80); // Block Data Update (BDU) active, +-100g
         writeConfig(CTRL_REG5, 0x00);
         
         _isAvailable = true;
@@ -52,7 +52,7 @@ void IMU::writeConfig(uint8_t reg, uint8_t value) {
     SPI.transfer(value);
     digitalWrite(_csPin, HIGH);
 
-    // Pokud upravujeme CTRL_REG4, rovnou aktualizujeme násobič citlivosti[cite: 11]
+    // Update sensitivity multiplier if scale (CTRL_REG4) is modified dynamically
     if (reg == CTRL_REG4) {
         _sensitivityMultiplier = getSensitivityMultiplier(value);
     }
@@ -78,7 +78,8 @@ void IMU::readMultipleRegisters(uint8_t reg, uint8_t *buffer, uint8_t len) {
 }
 
 float IMU::getSensitivityMultiplier(uint8_t ctrlReg4) {
-    uint8_t fs_bits = (ctrlReg4 >> 4) & 0x03; // Zisk FS1 a FS0 bitů[cite: 11]
+    // Extract FS1 and FS0 bits to determine scale
+    uint8_t fs_bits = (ctrlReg4 >> 4) & 0x03; 
     if (fs_bits == 0x00) return 0.049;      // +-100g
     if (fs_bits == 0x01) return 0.098;      // +-200g
     if (fs_bits == 0x03) return 0.195;      // +-400g
@@ -91,12 +92,12 @@ bool IMU::readData(IMUData& dataOut) {
     uint8_t data[6];
     readMultipleRegisters(OUT_X_L, data, 6);
     
-    // Sloučení 12bitových dat a odstranění zarovnání[cite: 11]
+    // Combine 12-bit data and remove alignment
     int16_t x_12bit = (int16_t)(data[0] | (data[1] << 8)) >> 4;
     int16_t y_12bit = (int16_t)(data[2] | (data[3] << 8)) >> 4;
     int16_t z_12bit = (int16_t)(data[4] | (data[5] << 8)) >> 4;
 
-    // Aplikace citlivosti a uživatelsky definovaného ofsetu
+    // Apply sensitivity scale and user-defined calibration offsets
     dataOut.x = (x_12bit * _sensitivityMultiplier) - _offsetX;
     dataOut.y = (y_12bit * _sensitivityMultiplier) - _offsetY;
     dataOut.z = (z_12bit * _sensitivityMultiplier) - _offsetZ;
