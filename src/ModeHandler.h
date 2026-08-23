@@ -16,7 +16,6 @@ private:
     IRobotMode* _currentMode;
     DriveModeType _currentModeType;
     
-    // Fyzická instance jednotlivých módů
     IdleMode _idleMode;
     ForwardMode _forwardMode;
     SpinMode _spinMode;

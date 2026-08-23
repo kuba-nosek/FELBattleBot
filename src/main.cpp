@@ -78,7 +78,6 @@ void setup() {
 }
 
 void loop() {
-    // Delete default Arduino task to free memory
     vTaskDelete(NULL);
 }
 
@@ -87,10 +86,8 @@ void loop() {
 // ====================================================================
 
 void mainThread(void *pvParameters) {
-    // Initialize unified robot container
     RobotCore robot;
     
-    // Link physical hardware objects to the core
     robot.hw.leftMotor = &motorLeft;
     robot.hw.rightMotor = &motorRight;
     robot.hw.led = &ledHandler;
@@ -102,23 +99,18 @@ void mainThread(void *pvParameters) {
     while (true) {
         robot.state.currentMs = millis();
 
-        // 1. READ INPUTS
         robot.state.isConnected = receiver.isConnected();
         if (robot.state.isConnected) {
             robot.state.throttle = SignalProcessing::normalizeChannel(receiver.getChannel(1));
             robot.state.steering = SignalProcessing::normalizeChannel(receiver.getChannel(0));
             robot.state.requestedMode = SignalProcessing::decodeMode(receiver.getChannel(7));
-        } else {
-            robot.state.requestedMode = DriveModeType::Idle;
         }
 
         if (imu1.isAvailable()) imu1.readData(robot.state.imu1);
         if (imu2.isAvailable()) imu2.readData(robot.state.imu2);
 
-        // 2. DELEGATE ALL LOGIC TO MODE HANDLER
         modeHandler.update(robot);
 
-        // Maintain strict loop frequency
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
