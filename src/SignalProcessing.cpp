@@ -1,5 +1,5 @@
 #include "SignalProcessing.h"
-#include <stdlib.h> // pro funkci abs()
+#include <stdlib.h>
 
 namespace SignalProcessing {
 

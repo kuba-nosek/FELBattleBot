@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-#include "ModeHandler.h" // Pro DriveModeType
+#include "ModeHandler.h"
 
 namespace SignalProcessing {
     // Převod surových mikrosekund (988-2012) na plyn/zatáčení (-1000 až 1000)
