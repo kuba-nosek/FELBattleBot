@@ -6,7 +6,8 @@ The architecture is explicitly prepared for advanced kinetic operations, includi
 
 ## Table of Contents
 - [System Architecture](#system-architecture)
-- [Custom Libraries and Modules](#custom-libraries-and-modules)
+- [Custom Libraries (`lib/`)](#custom-libraries-lib)
+- [Core Application Logic (`src/`)](#core-application-logic-src)
 - [FreeRTOS Threading Structure](#freertos-threading-structure)
 - [Safety and Failsafes](#safety-and-failsafes)
 
@@ -23,9 +24,9 @@ The core data structure is `RobotCore`, which strictly separates data from physi
 
 ---
 
-## Custom Libraries and Modules
+## Custom Libraries (`lib/`)
 
-Hardware peripherals and logical units are isolated into dedicated libraries (located in `lib/`), ensuring a clean separation of concerns.
+Hardware peripherals are isolated into dedicated, reusable libraries, ensuring a clean separation of concerns from the main application logic.
 
 ### 1. `Motor` (DShot ESC Controller)
 Handles bidirectional motor control using the digital DShot300 protocol via the ESP32 RMT (Remote Control) peripheral.
@@ -49,19 +50,25 @@ An isolated, lock-free driver for parsing the ExpressLRS / Crossfire serial prot
 
 ### 4. `LEDHandler` (Status and Sync UI)
 Manages the visual feedback of the robot using a priority-based indication system.
-*   **`setIndication(LEDIndication)`**: Sets the persistent status of the robot (e.g., `Idle`, `Forward`, `Failsafe`).
-*   **`playAnimation(LEDAnimation)`**: Triggers a high-priority visual sequence (e.g., `ModeChanged` or `ErrorAlert`) that temporarily overrides the base indication.
+*   **`setIndication(LEDIndication)`**: Sets the persistent status of the robot (e.g., `Idle`, `Forward`, `HardwareError`).
+*   **`playAnimation(LEDAnimation)`**: Triggers a high-priority visual sequence (e.g., `ModeChanged` or `InitializationFail`) that temporarily overrides the base indication.
 *   **`setMeltySync(periodUs, phaseOffsetUs, flashDurationUs)`**: Establishes microsecond-level LED timing required for Melty Brain rotational tracking, enabling direct IMU-to-LED synchronization.
 *   **`isMeltySyncActive()`**: Allows the thread scheduler to adjust loop timing dynamically for maximum precision.
 
-### 5. `ModeHandler` and `IRobotMode` (State Machine)
+---
+
+## Core Application Logic (`src/`)
+
+The application-specific logic is encapsulated in the `src/` directory, maintaining a clutter-free `main.cpp`.
+
+### 1. `ModeHandler` and `Modes/` (State Machine)
 The logical core of the robot utilizing polymorphism to manage diverse driving behaviors without conditional clutter.
-*   **`IRobotMode::execute(RobotCore& robot)`**: An abstract method implemented by specific modes (`IdleMode`, `ForwardMode`, `SpinMode`). Each mode reads inputs from `robot.state` and drives the components via `robot.hw`.
+*   **`IRobotMode::execute(RobotCore& robot)`**: An abstract interface implemented by specific classes (`IdleMode`, `ForwardMode`, `SpinMode`) located in the `src/Modes/` directory. Each mode reads inputs from `robot.state` and drives the components via `robot.hw`.
 *   **`IRobotMode::init(RobotCore& robot)`**: Executed once upon entering a new mode (e.g., triggering a UI animation or resetting IMU filters).
 *   **`ModeHandler::update(RobotCore& robot)`**: Safely manages state transitions and invokes the active mode's logic.
 
-### 6. `SignalProcessing` (Application Math)
-A local namespace to keep the main thread clean.
+### 2. `SignalProcessing` (Application Math)
+A local namespace dedicated to math operations specific to this robot's RC configuration.
 *   **`normalizeChannel(channelUs)`**: Converts raw RC values into a symmetric internal scale (-1000 to 1000) while applying a safety deadband.
 *   **`decodeMode(channelUs)`**: Maps the state of the 3-position auxiliary switch to specific `DriveModeType` enumerators.
 
@@ -92,5 +99,5 @@ The firmware distributes the workload across three independent tasks scheduled b
 
 Safety is strictly integrated into the boot sequence and the operational loop:
 
-*   **Startup Verification:** During `setup()`, the system evaluates the boolean return values of all hardware `init()` routines. If critical hardware fails to initialize, the robot enters an infinite lock-state, triggering a continuous LED error sequence.
+*   **Startup Verification:** During `setup()`, the system evaluates the boolean return values of all hardware `init()` routines. If critical hardware fails to initialize, the robot enters an infinite lock-state, triggering a continuous LED error sequence (`HardwareError`).
 *   **Hardware Failsafe:** The CRSF receiver continuously monitors the incoming telemetry frames. Upon a timeout (signal loss), a designated callback is executed, forcing the `ModeHandler` into `IdleMode` and setting motor speeds to a strict zero.

@@ -16,27 +16,14 @@ void LEDHandler::init() {
 
 void LEDHandler::setIndication(LEDIndication mode) {
     if (_currentIndication == mode) return;
-    
     _currentIndication = mode;
-    
-    // Reset sequence steps if no overriding animation is active
-    if (!_animationActive) {
-        _stepCounter = 0;
-        _ledState = false;
-        digitalWrite(_ledPin, LOW);
-    }
 }
 
 void LEDHandler::playAnimation(LEDAnimation mode) {
     _currentAnimation = mode;
     _animationActive = true;
     _animationStartMs = millis();
-    _stepCounter = 0;
     
-    _ledState = true; // Animations typically start with LED ON
-    digitalWrite(_ledPin, HIGH);
-    
-    // Set durations for specific animation blocks
     switch (mode) {
         case LEDAnimation::Bootup:
             _animationDurationMs = 2000;
@@ -46,6 +33,9 @@ void LEDHandler::playAnimation(LEDAnimation mode) {
             break;
         case LEDAnimation::ErrorAlert:
             _animationDurationMs = 3000;
+            break;
+        case LEDAnimation::TelemetrySent:
+            _animationDurationMs = 100;
             break;
         default:
             _animationDurationMs = 1000;
@@ -57,121 +47,104 @@ void LEDHandler::setMeltySync(uint32_t periodUs, uint32_t phaseOffsetUs, uint32_
     _meltyPeriodUs = periodUs;
     _meltyPhaseOffsetUs = phaseOffsetUs;
     _meltyFlashDurationUs = flashDurationUs;
-    
-    // Automatically transition to the MeltySync base indication
     setIndication(LEDIndication::MeltySync);
 }
 
 bool LEDHandler::isMeltySyncActive() const {
-    // Returns true if MeltySync is the active indication AND no priority animation is playing
     return (_currentIndication == LEDIndication::MeltySync && !_animationActive);
 }
 
 void LEDHandler::update() {
     uint32_t currentMs = millis();
+    bool shouldLight = false;
 
-    // 1. Check animation expiration
     if (_animationActive) {
         if (currentMs - _animationStartMs >= _animationDurationMs) {
             _animationActive = false;
             _currentAnimation = LEDAnimation::None;
-            _stepCounter = 0; // Prepare return to base indication
         }
     }
 
-    // 2. Evaluate blinking pattern
     if (_animationActive) {
-        // --- ANIMATION LOGIC ---
+        // --- ANIMATION (Priority) ---
+        uint32_t elapsed = currentMs - _animationStartMs;
+        
         switch (_currentAnimation) {
+            case LEDAnimation::Bootup:
+                // 4 Hz blinking
+                shouldLight = (elapsed % 250) < 125; 
+                break;
+                
             case LEDAnimation::ModeChanged:
-                // Fast toggle (50ms ON / 50ms OFF)
-                if (currentMs - _lastToggleMs >= 50) {
-                    _ledState = !_ledState;
-                    digitalWrite(_ledPin, _ledState);
-                    _lastToggleMs = currentMs;
-                }
+                // 10 Hz blinking
+                shouldLight = (elapsed % 100) < 50;
                 break;
                 
             case LEDAnimation::ErrorAlert:
-                // Rapid 100ms strobe for critical errors
-                if (currentMs - _lastToggleMs >= 100) {
-                    _ledState = !_ledState;
-                    digitalWrite(_ledPin, _ledState);
-                    _lastToggleMs = currentMs;
-                }
+                // 5 Hz rapid blinking
+                shouldLight = (elapsed % 200) < 100;
+                break;
+
+            case LEDAnimation::TelemetrySent:
+                // Single blink
+                shouldLight = (elapsed < 50);
                 break;
                 
             default:
+                shouldLight = true;
                 break;
         }
     } else {
-        // --- INDICATION LOGIC ---
+        // --- INDICATION ---
         switch (_currentIndication) {
             case LEDIndication::Off:
-                if (_ledState) {
-                    _ledState = false;
-                    digitalWrite(_ledPin, LOW);
-                }
+                shouldLight = false;
                 break;
 
-            case LEDIndication::Idle:
-                // Slow pulse (500ms ON / 500ms OFF)
-                if (currentMs - _lastToggleMs >= 500) {
-                    _ledState = !_ledState;
-                    digitalWrite(_ledPin, _ledState);
-                    _lastToggleMs = currentMs;
-                }
+            case LEDIndication::Idle: {
+                // Heart beat effect
+                uint32_t cycle = currentMs % 2000;
+                shouldLight = (cycle < 100) || (cycle > 200 && cycle < 300);
                 break;
+            }
 
             case LEDIndication::Forward:
             case LEDIndication::Spin:
-                // Solid ON for standard drive modes
-                if (!_ledState) {
-                    _ledState = true;
-                    digitalWrite(_ledPin, HIGH);
-                }
-                break;
-
-            case LEDIndication::MeltySync:
-                {
-                    // Microsecond precision logic for Melty Brain tracking
-                    uint32_t currentUs = micros(); 
-                    
-                    if (_meltyPeriodUs > 0) {
-                        // Find elapsed time within the current rotation (Modulo math)
-                        uint32_t positionInRotation = (currentUs - _meltyPhaseOffsetUs) % _meltyPeriodUs;
-                        
-                        // Determine if we are inside the designated flash window
-                        bool shouldFlash = (positionInRotation < _meltyFlashDurationUs);
-                        
-                        if (_ledState != shouldFlash) {
-                            _ledState = shouldFlash;
-                            digitalWrite(_ledPin, _ledState);
-                        }
-                    }
-                }
+                // solid light
+                shouldLight = true;
                 break;
 
             case LEDIndication::Failsafe:
-                // Failsafe pattern (e.g., 200ms ON/OFF)
-                if (currentMs - _lastToggleMs >= 200) {
-                    _ledState = !_ledState;
-                    digitalWrite(_ledPin, _ledState);
-                    _lastToggleMs = currentMs;
-                }
+                // 2 Hz, 250 ms on 250 ms off
+                shouldLight = (currentMs % 500) < 250;
                 break;
 
             case LEDIndication::HardwareError:
-                // Terminal error - rapid blinking (30ms ON / 30ms OFF)
-                if (currentMs - _lastToggleMs >= 30) {
-                    _ledState = !_ledState;
-                    digitalWrite(_ledPin, _ledState);
-                    _lastToggleMs = currentMs;
+                // 15 Hz rapid blinking
+                shouldLight = (currentMs % 60) < 30;
+                break;
+
+            case LEDIndication::LowBattery:
+                // 100 ms on 900 ms off
+                shouldLight = (currentMs % 1000) < 100;
+                break;
+
+            case LEDIndication::MeltySync:
+                // MeltySpin indication
+                if (_meltyPeriodUs > 0) {
+                    uint32_t currentUs = micros(); 
+                    uint32_t positionInRotation = (currentUs - _meltyPhaseOffsetUs) % _meltyPeriodUs;
+                    shouldLight = (positionInRotation < _meltyFlashDurationUs);
                 }
                 break;
 
             default:
                 break;
         }
+    }
+
+    if (_ledState != shouldLight) {
+        _ledState = shouldLight;
+        digitalWrite(_ledPin, _ledState ? HIGH : LOW);
     }
 }
