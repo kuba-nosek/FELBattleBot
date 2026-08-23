@@ -3,76 +3,78 @@
 // ====================================================================
 // IDLE MODE
 // ====================================================================
-void IdleMode::init() {
-    // One-time initialization for Idle mode
+void IdleMode::init(RobotCore& robot) {
+    // Failsafe or neutral initialization
 }
 
-void IdleMode::calculateResponse(RobotContext& ctx) {
-    // Stop motors during idle or signal loss
-    ctx.leftMotorSpeed = 0;
-    ctx.rightMotorSpeed = 0;
+void IdleMode::execute(RobotCore& robot) {
+    robot.hw.leftMotor->stop();
+    robot.hw.rightMotor->stop();
 
-    // Set LED indication based on connection
-    if (!ctx.isConnected) {
-        ctx.ledIndication = LEDIndication::Failsafe;
+    if (!robot.state.isConnected) {
+        robot.hw.led->setIndication(LEDIndication::Failsafe);
     } else {
-        ctx.ledIndication = LEDIndication::Idle;
+        robot.hw.led->setIndication(LEDIndication::Idle);
     }
 }
 
 // ====================================================================
 // FORWARD MODE
 // ====================================================================
-void ForwardMode::init() {
-    // One-time initialization for Forward mode
+void ForwardMode::init(RobotCore& robot) {
+    // Mode independently triggers its visual feedback
+    robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
 }
 
-void ForwardMode::calculateResponse(RobotContext& ctx) {
-    int32_t left = ctx.throttle;
-    int32_t right = ctx.throttle;
+void ForwardMode::execute(RobotCore& robot) {
+    int32_t left = robot.state.throttle;
+    int32_t right = robot.state.throttle;
 
-    // Apply differential steering (throttle/steering mix)
-    if (ctx.steering < 0) {
-        left = left * (1000 + ctx.steering) / 1000;
-    } else if (ctx.steering > 0) {
-        right = right * (1000 - ctx.steering) / 1000;
+    // Differential steering mix
+    if (robot.state.steering < 0) {
+        left = left * (1000 + robot.state.steering) / 1000;
+    } else if (robot.state.steering > 0) {
+        right = right * (1000 - robot.state.steering) / 1000;
     }
 
-    ctx.leftMotorSpeed = static_cast<int16_t>(left);
-    ctx.rightMotorSpeed = static_cast<int16_t>(right);
-    
-    // Forward LED indication
-    ctx.ledIndication = LEDIndication::Forward;
+    // Direct hardware output
+    robot.hw.leftMotor->setSpeed(static_cast<int16_t>(left), robot.state.currentMs);
+    robot.hw.rightMotor->setSpeed(static_cast<int16_t>(right), robot.state.currentMs);
+    robot.hw.led->setIndication(LEDIndication::Forward);
 }
 
 // ====================================================================
 // SPIN MODE
 // ====================================================================
-void SpinMode::init() {
-    // One-time initialization for Spin mode
+void SpinMode::init(RobotCore& robot) {
+    robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
 }
 
-void SpinMode::calculateResponse(RobotContext& ctx) {
-    // Tank spin: motors rotate in opposite directions (Future: Melty translation here)
-    ctx.leftMotorSpeed = ctx.throttle;
-    ctx.rightMotorSpeed = -ctx.throttle;
-
-    // Spin LED indication (Future: Melty Brain strobe sync)
-    ctx.ledIndication = LEDIndication::Spin;
+void SpinMode::execute(RobotCore& robot) {
+    // Tank spin output
+    robot.hw.leftMotor->setSpeed(robot.state.throttle, robot.state.currentMs);
+    robot.hw.rightMotor->setSpeed(-robot.state.throttle, robot.state.currentMs);
+    robot.hw.led->setIndication(LEDIndication::Spin);
 }
 
 // ====================================================================
-// MODE HANDLER (State Manager)
+// MODE HANDLER CORE
 // ====================================================================
 ModeHandler::ModeHandler() 
     : _currentMode(&_idleMode), _currentModeType(DriveModeType::Idle) {
 }
 
-void ModeHandler::setMode(DriveModeType newMode) {
-    if (_currentModeType == newMode) {
-        return;
+void ModeHandler::update(RobotCore& robot) {
+    // 1. Check for requested mode transitions
+    if (robot.state.requestedMode != _currentModeType) {
+        changeMode(robot.state.requestedMode, robot);
     }
+    
+    // 2. Execute active mode logic
+    _currentMode->execute(robot);
+}
 
+void ModeHandler::changeMode(DriveModeType newMode, RobotCore& robot) {
     _currentModeType = newMode;
 
     switch (newMode) {
@@ -88,14 +90,10 @@ void ModeHandler::setMode(DriveModeType newMode) {
             break;
     }
 
-    // Trigger initialization of the new active mode
-    _currentMode->init();
+    // Trigger initialization routine of the new mode
+    _currentMode->init(robot);
 }
 
 DriveModeType ModeHandler::getCurrentModeType() const {
     return _currentModeType;
-}
-
-IRobotMode* ModeHandler::getCurrentMode() const {
-    return _currentMode;
 }

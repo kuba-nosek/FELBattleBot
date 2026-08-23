@@ -31,15 +31,10 @@ void LEDThread(void *pvParameters);
 
 // --- Safety failsafe callback ---
 void onFailsafe() {
-    ledHandler.playAnimation(LEDAnimation::ErrorAlert);
-    modeHandler.setMode(DriveModeType::Idle);
-    motorLeft.stop();
-    motorRight.stop();
+  // TODO
 }
 
 void setup() {
-    Serial.begin(115200);
-
     // Initialize SPI for IMUs
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
     SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE0));
@@ -63,13 +58,12 @@ void setup() {
     hardwareOk &= (imu1Ok && imu2Ok);
 
     if (!hardwareOk) {
-        Serial.println("CRITICAL ERROR: Hardware initialization failed!");
+
+        ledHandler.setIndication(LEDIndication::HardwareError);
         
         while (true) {
-            // Infinite loop on hardware failure with LED alert
-            ledHandler.playAnimation(LEDAnimation::ErrorAlert);
-            ledHandler.update(millis());
-            delay(10);
+            ledHandler.update();
+            delay(10); 
         }
     }
 
@@ -93,57 +87,47 @@ void loop() {
 // ====================================================================
 
 void mainThread(void *pvParameters) {
-  RobotContext ctx;
-  TickType_t xLastWakeTime = xTaskGetTickCount();
-  const TickType_t xFrequency = pdMS_TO_TICKS(1000 / TASK_CONTROL_HZ);
-
-  while (true) {
-    uint32_t currentMs = millis();
-
-    // 1. READ INPUTS
-    ctx.isConnected = receiver.isConnected();
-    if (ctx.isConnected) {
-      ctx.throttle = SignalProcessing::normalizeChannel(receiver.getChannel(1));
-      ctx.steering = SignalProcessing::normalizeChannel(receiver.getChannel(0));
-      ctx.requestedMode = SignalProcessing::decodeMode(receiver.getChannel(7));
-    } else {
-      // Force Idle mode on signal loss
-      ctx.requestedMode = DriveModeType::Idle;
-    }
-
-    // Read accelerometer data (Future: Melty Brain math basis)
-    if (imu1.isAvailable()) {
-      imu1.readData(ctx.imu1);
-    }
-    if (imu2.isAvailable()) {
-      imu2.readData(ctx.imu2);
-    }
-
-    // 2. MODE SWITCH CHECK
-    if (ctx.requestedMode != modeHandler.getCurrentModeType()) {
-      modeHandler.setMode(ctx.requestedMode);
-      ledHandler.playAnimation(LEDAnimation::ModeChanged);
-    }
-
-    // 3. CALCULATE RESPONSE
-    // Execute active mode logic via RobotContext
-    modeHandler.getCurrentMode()->calculateResponse(ctx);
-
-    // 4. HARDWARE OUTPUT
-    // Apply motor speeds
-    motorLeft.setSpeed(ctx.leftMotorSpeed, currentMs);
-    motorRight.setSpeed(ctx.rightMotorSpeed, currentMs);
+    // Initialize unified robot container
+    RobotCore robot;
     
-    // Update LED state (Animations are handled dynamically by LEDThread)
-    ledHandler.setIndication(ctx.ledIndication);
+    // Link physical hardware objects to the core
+    robot.hw.leftMotor = &motorLeft;
+    robot.hw.rightMotor = &motorRight;
+    robot.hw.led = &ledHandler;
+    robot.hw.rx = &receiver;
 
-    // Maintain strict loop frequency
-    vTaskDelayUntil(&xLastWakeTime, xFrequency);
-  }
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / TASK_CONTROL_HZ);
+
+    while (true) {
+        robot.state.currentMs = millis();
+
+        // 1. READ INPUTS
+        robot.state.isConnected = receiver.isConnected();
+        if (robot.state.isConnected) {
+            robot.state.throttle = SignalProcessing::normalizeChannel(receiver.getChannel(1));
+            robot.state.steering = SignalProcessing::normalizeChannel(receiver.getChannel(0));
+            robot.state.requestedMode = SignalProcessing::decodeMode(receiver.getChannel(7));
+        } else {
+            robot.state.requestedMode = DriveModeType::Idle;
+        }
+
+        if (imu1.isAvailable()) imu1.readData(robot.state.imu1);
+        if (imu2.isAvailable()) imu2.readData(robot.state.imu2);
+
+        // 2. DELEGATE ALL LOGIC TO MODE HANDLER
+        modeHandler.update(robot);
+
+        // Maintain strict loop frequency
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
 }
 
+// ====================================================================
+// RECEIVER THREAD
+// ====================================================================
 void ReceiverThread(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(TASK_RECEIVER_MS);
+    const TickType_t xFrequency = pdMS_TO_TICKS(TASK_RECEIVER_MS); 
 
     while (true) {
         receiver.update(millis());
@@ -151,23 +135,18 @@ void ReceiverThread(void *pvParameters) {
     }
 }
 
+// ====================================================================
+// LED THREAD
+// ====================================================================
 void LEDThread(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(TASK_LED_MS);
-
     while (true) {
-        ledHandler.update(millis());
+        ledHandler.update();
 
-        DriveModeType currentMode = modeHandler.getCurrentModeType();
-        if (!receiver.isConnected()) {
-            ledHandler.setIndication(LEDIndication::Failsafe);
-        } else if (currentMode == DriveModeType::Forward) {
-            ledHandler.setIndication(LEDIndication::Forward);
-        } else if (currentMode == DriveModeType::Spin) {
-            ledHandler.setIndication(LEDIndication::Spin);
+        // precision for meltySync mode
+        if (ledHandler.isMeltySyncActive()) {
+            vTaskDelay(1); 
         } else {
-            ledHandler.setIndication(LEDIndication::Idle);
+            vTaskDelay(pdMS_TO_TICKS(20));
         }
-
-        vTaskDelay(xFrequency);
     }
 }

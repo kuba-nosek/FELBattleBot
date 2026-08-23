@@ -6,9 +6,11 @@ enum class LEDIndication : uint8_t {
     Off = 0,
     Idle,
     Forward,
-    Spin,        // Future: MeltyBrain visual sync mode
+    Spin,
+    MeltySync,   // High-precision microsecond rotational sync
     Failsafe,
-    LowBattery
+    LowBattery,
+    HardwareError
 };
 
 // Short-term priority animation states
@@ -32,10 +34,14 @@ public:
     // Play a priority animation (temporarily overrides base indication)
     void playAnimation(LEDAnimation mode);
     
-    // Future: void setMeltySync(uint32_t periodUs, uint32_t phaseOffsetUs, ...);
+    // Setup high-precision parameters for Melty Brain visual tracking
+    void setMeltySync(uint32_t periodUs, uint32_t phaseOffsetUs, uint32_t flashDurationUs);
+    
+    // Returns true if MeltySync is active and not blocked by an animation
+    bool isMeltySyncActive() const;
     
     // Must be called cyclically in the dedicated LED thread
-    void update(uint32_t currentMs);
+    void update();
 
 private:
     uint8_t _ledPin;
@@ -53,4 +59,9 @@ private:
     uint32_t _lastToggleMs;
     bool _ledState;
     uint8_t _stepCounter;
+
+    // Melty Brain microsecond timing variables
+    uint32_t _meltyPeriodUs;
+    uint32_t _meltyPhaseOffsetUs;
+    uint32_t _meltyFlashDurationUs;
 };

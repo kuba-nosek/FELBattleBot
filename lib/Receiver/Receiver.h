@@ -39,7 +39,7 @@ private:
     uint8_t _frame[64];
     size_t _position;
     size_t _expectedSize;
-    uint16_t _channels[16];
+    volatile uint16_t _channels[16];
     
     void processByte(uint8_t byte);
 };
