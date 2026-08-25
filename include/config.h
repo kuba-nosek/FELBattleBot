@@ -1,6 +1,18 @@
 #pragma once
 #include <stdint.h>
 
+// ==========================================
+// DEBUG AP & TELEMETRY
+// ==========================================
+#define ENABLE_DEBUG_AP false 
+
+#if ENABLE_DEBUG_AP
+    constexpr char AP_SSID[] = "FELBattleBot";
+    constexpr char AP_PASS[] = "melty123";
+    constexpr char UDP_BROADCAST_IP[] = "192.168.4.255"; 
+    constexpr uint16_t UDP_PORT = 4444;
+#endif
+
 namespace RobotConfig {
     // ==========================================
     // PINOUT

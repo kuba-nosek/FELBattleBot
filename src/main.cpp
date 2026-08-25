@@ -8,8 +8,13 @@
 #include "Receiver.h"
 #include "LEDHandler.h"
 #include "ModeHandler.h"
-
 #include "SignalProcessing.h"
+
+#if ENABLE_DEBUG_AP
+    #include <WiFi.h>
+    #include <WiFiUdp.h>
+    WiFiUDP udp;
+#endif
 
 using namespace RobotConfig;
 
@@ -37,9 +42,37 @@ void onFailsafe() {
   robot.hw.led->setIndication(LEDIndication::Failsafe);
 }
 
+#if ENABLE_DEBUG_AP 
+void sendWiFiTelemetry() {
+
+        static uint32_t lastUdpMs = 0;
+        if (robot.state.currentMs - lastUdpMs > 50) {
+            char payload[128];
+            snprintf(payload, sizeof(payload), 
+                "IMU1: X=%.2f Y=%.2f Z=%.2f | IMU2: X=%.2f Y=%.2f Z=%.2f", 
+                robot.state.imu1.x, robot.state.imu1.y, robot.state.imu1.z,
+                robot.state.imu2.x, robot.state.imu2.y, robot.state.imu2.z);
+            
+            udp.beginPacket(UDP_BROADCAST_IP, UDP_PORT);
+            udp.print(payload);
+            udp.endPacket();
+            
+            lastUdpMs = robot.state.currentMs;
+        }
+    }
+#endif
+
 void setup() {
     Serial.begin(115200);
     delay(2000);
+
+    #if ENABLE_DEBUG_AP
+        Serial.println("Startuji Wi-Fi AP...");
+        WiFi.softAP(AP_SSID, AP_PASS);
+        Serial.print("AP IP adresa: ");
+        Serial.println(WiFi.softAPIP());
+    #endif
+
     // Initialize SPI for IMUs
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
     SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE0));
@@ -100,6 +133,9 @@ void mainThread(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(1000 / TASK_CONTROL_HZ);
 
+    // light indication sync
+    modeHandler.update(robot);
+
     while (true) {
         robot.state.currentMs = millis();
 
@@ -110,6 +146,10 @@ void mainThread(void *pvParameters) {
 
         if (imu1.isAvailable()) imu1.readData(robot.state.imu1);
         if (imu2.isAvailable()) imu2.readData(robot.state.imu2);
+
+        #if ENABLE_DEBUG_AP 
+            sendWiFiTelemetry();
+        #endif
 
         modeHandler.update(robot);
     
