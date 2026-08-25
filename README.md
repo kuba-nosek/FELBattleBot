@@ -8,6 +8,7 @@ The architecture is explicitly prepared for advanced kinetic operations, includi
 - [System Architecture](#system-architecture)
 - [Custom Libraries (`lib/`)](#custom-libraries-lib)
 - [Core Application Logic (`src/`)](#core-application-logic-src)
+- [Visual Feedback (LED UI)](#visual-feedback-led-ui)
 - [FreeRTOS Threading Structure](#freertos-threading-structure)
 - [Safety and Failsafes](#safety-and-failsafes)
 
@@ -71,6 +72,35 @@ The logical core of the robot utilizing polymorphism to manage diverse driving b
 A local namespace dedicated to math operations specific to this robot's RC configuration.
 *   **`normalizeChannel(channelUs)`**: Converts raw RC values into a symmetric internal scale (-1000 to 1000) while applying a safety deadband.
 *   **`decodeMode(channelUs)`**: Maps the state of the 3-position auxiliary switch to specific `DriveModeType` enumerators.
+
+---
+
+## Visual Feedback (LED UI)
+
+The robot utilizes a time-modulo based visual language to communicate its current state and urgent events. The system distinguishes between persistent indications and temporary priority animations.
+
+### Persistent Indications (Base States)
+These states represent the current operating mode or health of the robot.
+
+| State | Visual Pattern | Description |
+| :--- | :--- | :--- |
+| **Idle** | Heartbeat | A repeating 2000 ms cycle featuring a double-blink "heartbeat" effect. |
+| **Forward / Spin** | Solid Light | Continuous solid light indicating an active drive/combat mode. |
+| **Failsafe** | Slow Blink (2 Hz) | 250 ms ON, 250 ms OFF loop warning of RC link loss. |
+| **Low Battery** | Short Pulse | A power-saving warning flash (100 ms ON, 900 ms OFF). |
+| **Hardware Error** | Rapid Strobe (15 Hz) | Fast terminal error warning (30 ms ON, 30 ms OFF). |
+| **Melty Sync** | Rotational Strobe | High-precision microsecond directional strobe synced to IMU data. |
+| **Off** | Dark | LED is completely deactivated. |
+
+### Priority Animations (Events)
+These sequences temporarily override the base indication to alert the user of specific events.
+
+| Animation | Visual Pattern | Duration |
+| :--- | :--- | :--- |
+| **Bootup** | 4 Hz Blinking | 2000 ms sequence during initialization. |
+| **Mode Changed** | 10 Hz Fast Blink | 500 ms visual confirmation of switch toggling. |
+| **Error Alert** | 5 Hz Rapid Blink | 3000 ms sequence for non-terminal faults. |
+| **Telemetry Sent** | Single Flash | A brief 100 ms override displaying a 50 ms flash. |
 
 ---
 

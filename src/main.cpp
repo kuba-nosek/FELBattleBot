@@ -24,6 +24,8 @@ Receiver receiver(PIN_CRSF_RX, PIN_CRSF_TX);
 LEDHandler ledHandler(PIN_LED);
 ModeHandler modeHandler;
 
+RobotCore robot;
+
 // --- FreeRTOS task prototypes ---
 void mainThread(void *pvParameters);
 void ReceiverThread(void *pvParameters);
@@ -31,7 +33,8 @@ void LEDThread(void *pvParameters);
 
 // --- Safety failsafe callback ---
 void onFailsafe() {
-  // TODO
+  robot.state.requestedMode = DriveModeType::Idle;
+  robot.hw.led->setIndication(LEDIndication::Failsafe);
 }
 
 void setup() {
@@ -86,7 +89,6 @@ void loop() {
 // ====================================================================
 
 void mainThread(void *pvParameters) {
-    RobotCore robot;
     
     robot.hw.leftMotor = &motorLeft;
     robot.hw.rightMotor = &motorRight;

@@ -11,7 +11,7 @@ namespace RobotConfig {
     constexpr uint8_t PIN_MOTOR_L = 2;  
     constexpr uint8_t PIN_MOTOR_R = 3;  
     
-    constexpr uint8_t PIN_LED     = 10; 
+    constexpr uint8_t PIN_LED     = 9; 
 
     // SPI Bus
     constexpr uint8_t PIN_SPI_SCK  = 8;  
