@@ -5,13 +5,9 @@ ModeHandler::ModeHandler()
 }
 
 void ModeHandler::update(RobotCore& robot) {
-    // 1. Check for requested mode transitions
     if (robot.state.requestedMode != _currentModeType) {
         changeMode(robot.state.requestedMode, robot);
     }
-    
-    // 2. Execute active mode logic
-    _currentMode->execute(robot);
 }
 
 void ModeHandler::changeMode(DriveModeType newMode, RobotCore& robot) {
@@ -34,6 +30,10 @@ void ModeHandler::changeMode(DriveModeType newMode, RobotCore& robot) {
     _currentMode->init(robot);
 }
 
-DriveModeType ModeHandler::getCurrentModeType() const {
+DriveModeType ModeHandler::getCurrentModeID() const {
     return _currentModeType;
+}
+
+IRobotMode* ModeHandler::getCurrentMode() const {
+    return _currentMode;
 }

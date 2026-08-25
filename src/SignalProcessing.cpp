@@ -1,28 +1,35 @@
 #include "SignalProcessing.h"
+#include "config.h"
 #include <stdlib.h>
 
 namespace SignalProcessing {
 
     int16_t normalizeChannel(uint16_t channelUs) {
-        if (channelUs < 988) channelUs = 988;
-        if (channelUs > 2012) channelUs = 2012;
+        // Zastřešení extrémních hodnot mimo stanovený limit
+        if (channelUs < RobotConfig::RC_CHANNEL_MIN) channelUs = RobotConfig::RC_CHANNEL_MIN;
+        if (channelUs > RobotConfig::RC_CHANNEL_MAX) channelUs = RobotConfig::RC_CHANNEL_MAX;
         
-        int32_t delta = static_cast<int32_t>(channelUs) - 1500;
+        // Zjištění odchylky od středu páčky
+        int32_t delta = static_cast<int32_t>(channelUs) - RobotConfig::RC_CHANNEL_CENTER;
         
-        // Mrtvá zóna (deadband)[cite: 6]
-        if (abs(delta) <= 20) {
+        // Mrtvá zóna (deadband) kolem středu
+        if (abs(delta) <= RobotConfig::RC_DEADBAND) {
             return 0;
         }
         
-        int32_t normalized = (abs(delta) - 20) * 1000 / (500 - 20);
+        // Přepočet do výstupní škály s kompenzací mrtvé zóny
+        int32_t normalized = (abs(delta) - RobotConfig::RC_DEADBAND) * RobotConfig::RC_OUTPUT_SCALE / 
+                             (RobotConfig::RC_CHANNEL_HALF_RANGE - RobotConfig::RC_DEADBAND);
+                             
         return static_cast<int16_t>(delta < 0 ? -normalized : normalized);
     }
 
     DriveModeType decodeMode(uint16_t channelUs) {
-        if (channelUs <= 1300) {
+        // Dekódování pozice 3polohového přepínače
+        if (channelUs <= RobotConfig::RC_MODE_SPIN_THRESHOLD) {
             return DriveModeType::Spin;
         }
-        if (channelUs >= 1700) {
+        if (channelUs >= RobotConfig::RC_MODE_FORWARD_THRESHOLD) {
             return DriveModeType::Forward;
         }
         return DriveModeType::Idle;

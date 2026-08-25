@@ -12,18 +12,20 @@ enum class DriveModeType {
     Spin
 };
 
-// 1. Data and sensor state (What the robot feels)
+struct ReceiverInput {
+    int16_t throttle;
+    int16_t steering;
+};
+
 struct RobotState {
     uint32_t currentMs;
     bool isConnected;
-    int16_t throttle;
-    int16_t steering;
+    ReceiverInput receiver;
     DriveModeType requestedMode;
     IMUData imu1;
     IMUData imu2;
 };
 
-// 2. Hardware abstraction (What the robot controls)
 struct RobotHardware {
     Motor* leftMotor;
     Motor* rightMotor;
@@ -31,7 +33,6 @@ struct RobotHardware {
     Receiver* rx;
 };
 
-// 3. Central context container
 struct RobotCore {
     RobotState state;
     RobotHardware hw;

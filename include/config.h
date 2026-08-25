@@ -37,4 +37,24 @@ namespace RobotConfig {
     constexpr uint32_t TASK_CONTROL_HZ = 100; // Main thread frequency (100 Hz = 10 ms)
     constexpr uint32_t TASK_RECEIVER_MS = 2;  // UART readout interval
     constexpr uint32_t TASK_LED_MS = 20;      // LED update interval
+
+    // ==========================================
+    // RC & Signal Processing
+    // ==========================================
+    constexpr uint16_t RC_CHANNEL_MIN = 988;
+    constexpr uint16_t RC_CHANNEL_MAX = 2012;
+    constexpr uint16_t RC_CHANNEL_CENTER = 1500;
+    
+    // Half-range (1500 to 2000 roughly equals 500)
+    constexpr uint16_t RC_CHANNEL_HALF_RANGE = 500; 
+    
+    // Deadband to prevent motor drift when sticks are centered
+    constexpr uint16_t RC_DEADBAND = 20;
+    
+    // Normalized internal scale (-1000 to 1000)
+    constexpr int32_t RC_OUTPUT_SCALE = 1000;
+
+    // Thresholds for the 3-position mode switch
+    constexpr uint16_t RC_MODE_SPIN_THRESHOLD = 1300;
+    constexpr uint16_t RC_MODE_FORWARD_THRESHOLD = 1700;
 }

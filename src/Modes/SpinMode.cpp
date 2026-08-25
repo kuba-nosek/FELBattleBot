@@ -7,9 +7,7 @@ void SpinMode::init(RobotCore& robot) {
 
 void SpinMode::execute(RobotCore& robot) {
     // Tank spin output
-    robot.hw.leftMotor->setSpeed(robot.state.throttle, robot.state.currentMs);
-    robot.hw.rightMotor->setSpeed(-robot.state.throttle, robot.state.currentMs);
+    robot.hw.leftMotor->setSpeed(robot.state.receiver.throttle, robot.state.currentMs);
+    robot.hw.rightMotor->setSpeed(-robot.state.receiver.throttle, robot.state.currentMs);
     robot.hw.led->setIndication(LEDIndication::Spin);
-    
-    // TODO: Zde budeme přidávat výpočty pro úhlovou rychlost a volání MeltySync
 }

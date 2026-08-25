@@ -8,9 +8,9 @@ class ModeHandler {
 public:
     ModeHandler();
     
-    // Main update loop - handles mode switching and execution internally
     void update(RobotCore& robot);
-    DriveModeType getCurrentModeType() const;
+    DriveModeType getCurrentModeID() const;
+    IRobotMode* getCurrentMode() const;
 
 private:
     IRobotMode* _currentMode;

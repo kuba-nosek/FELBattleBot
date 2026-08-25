@@ -101,8 +101,8 @@ void mainThread(void *pvParameters) {
 
         robot.state.isConnected = receiver.isConnected();
         if (robot.state.isConnected) {
-            robot.state.throttle = SignalProcessing::normalizeChannel(receiver.getChannel(1));
-            robot.state.steering = SignalProcessing::normalizeChannel(receiver.getChannel(0));
+            robot.state.receiver.throttle = SignalProcessing::normalizeChannel(receiver.getChannel(1));
+            robot.state.receiver.steering = SignalProcessing::normalizeChannel(receiver.getChannel(0));
             robot.state.requestedMode = SignalProcessing::decodeMode(receiver.getChannel(7));
         }
 
@@ -110,6 +110,8 @@ void mainThread(void *pvParameters) {
         if (imu2.isAvailable()) imu2.readData(robot.state.imu2);
 
         modeHandler.update(robot);
+    
+        modeHandler.getCurrentMode()->execute(robot);
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
