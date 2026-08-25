@@ -82,6 +82,7 @@ void ForwardMode::init(RobotCore &robot)
     lastUpdateMs_ = robot.state.currentMs;
 
     robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
+    robot.hw.led->setIndication(LEDIndication::Forward);
 }
 
 void ForwardMode::execute(RobotCore &robot)
@@ -105,7 +106,6 @@ void ForwardMode::execute(RobotCore &robot)
 
     robot.hw.leftMotor->setSpeed(static_cast<int16_t>(left), currentMs);
     robot.hw.rightMotor->setSpeed(static_cast<int16_t>(right), currentMs);
-    robot.hw.led->setIndication(LEDIndication::Forward);
 }
 
 void ForwardMode::applyPowerExpo(int32_t &throttle)

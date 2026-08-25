@@ -69,7 +69,7 @@ ReceiverStats Receiver::getStatistics() const {
 // CONTINUOUS POLLING & FAILSAFE
 // ====================================================================
 
-void Receiver::update(uint32_t currentMs) {
+void Receiver::update() {
     // Process incoming serial buffer
     size_t bytesProcessed = 0;
     while (crsfSerial.available() > 0 && bytesProcessed < 256) {
@@ -78,7 +78,7 @@ void Receiver::update(uint32_t currentMs) {
     }
 
     // Trigger failsafe if no valid frames received within timeout[cite: 5]
-    if (_connected && (currentMs - _lastValidFrameMs > CRSF_FAILSAFE_TIMEOUT_MS)) {
+    if (_connected && (millis() - _lastValidFrameMs > CRSF_FAILSAFE_TIMEOUT_MS)) {
         _connected = false;
         if (_disconnectCallback != nullptr) {
             _disconnectCallback(); // Escalate to higher logic layer

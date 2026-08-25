@@ -38,6 +38,8 @@ void onFailsafe() {
 }
 
 void setup() {
+    Serial.begin(115200);
+    delay(2000);
     // Initialize SPI for IMUs
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
     SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE0));
@@ -102,11 +104,9 @@ void mainThread(void *pvParameters) {
         robot.state.currentMs = millis();
 
         robot.state.isConnected = receiver.isConnected();
-        if (robot.state.isConnected) {
-            robot.state.receiver.throttle = SignalProcessing::normalizeChannel(receiver.getChannel(1));
-            robot.state.receiver.steering = SignalProcessing::normalizeChannel(receiver.getChannel(0));
-            robot.state.requestedMode = SignalProcessing::decodeMode(receiver.getChannel(7));
-        }
+        robot.state.receiver.throttle = SignalProcessing::normalizeChannel(receiver.getChannel(1));
+        robot.state.receiver.steering = SignalProcessing::normalizeChannel(receiver.getChannel(0));
+        robot.state.requestedMode = SignalProcessing::decodeMode(receiver.getChannel(4), receiver.getChannel(7));
 
         if (imu1.isAvailable()) imu1.readData(robot.state.imu1);
         if (imu2.isAvailable()) imu2.readData(robot.state.imu2);
@@ -126,7 +126,7 @@ void ReceiverThread(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(TASK_RECEIVER_MS); 
 
     while (true) {
-        receiver.update(millis());
+        receiver.update();
         vTaskDelay(xFrequency);
     }
 }

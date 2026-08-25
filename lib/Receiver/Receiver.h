@@ -15,7 +15,7 @@ public:
     Receiver(uint8_t rxPin, uint8_t txPin);
     
     void connect(); 
-    void update(uint32_t currentMs); 
+    void update(); 
     
     bool isConnected() const;
     void onDisconnect(DisconnectCallback callback);

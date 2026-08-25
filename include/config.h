@@ -5,8 +5,8 @@ namespace RobotConfig {
     // ==========================================
     // PINOUT
     // ==========================================
-    constexpr uint8_t PIN_CRSF_RX = 20; 
-    constexpr uint8_t PIN_CRSF_TX = 21; 
+    constexpr uint8_t PIN_CRSF_RX = 0; 
+    constexpr uint8_t PIN_CRSF_TX = 1; 
     
     constexpr uint8_t PIN_MOTOR_L = 2;  
     constexpr uint8_t PIN_MOTOR_R = 3;  

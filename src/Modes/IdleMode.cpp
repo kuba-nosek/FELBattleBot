@@ -1,12 +1,11 @@
 #include "IdleMode.h"
 
 void IdleMode::init(RobotCore& robot) {
-    // Failsafe or neutral initialization
+    robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
+    robot.hw.led->setIndication(LEDIndication::Idle);
 }
 
 void IdleMode::execute(RobotCore& robot) {
     robot.hw.leftMotor->stop();
     robot.hw.rightMotor->stop();
-
-    robot.hw.led->setIndication(LEDIndication::Idle);
 }
