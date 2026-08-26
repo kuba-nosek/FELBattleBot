@@ -124,7 +124,8 @@ void loop() {
 // ====================================================================
 
 void mainThread(void *pvParameters) {
-    
+    ReceiverInputRaw rawReceiverInput{};
+
     robot.hw.leftMotor = &motorLeft;
     robot.hw.rightMotor = &motorRight;
     robot.hw.led = &ledHandler;
@@ -140,9 +141,19 @@ void mainThread(void *pvParameters) {
         robot.state.currentMs = millis();
 
         robot.state.isConnected = receiver.isConnected();
-        robot.state.receiver.throttle = SignalProcessing::normalizeChannel(receiver.getChannel(1));
-        robot.state.receiver.steering = SignalProcessing::normalizeChannel(receiver.getChannel(0));
-        robot.state.requestedMode = SignalProcessing::decodeMode(receiver.getChannel(4), receiver.getChannel(7));
+
+        for (uint8_t channel = 0; channel < RC_CHANNEL_COUNT; ++channel) {
+            rawReceiverInput.channelsUs[channel] = receiver.getChannel(channel);
+        }
+
+        const ReceiverInput input =
+            SignalProcessing::processReceiverInput(rawReceiverInput);
+
+        if (robot.state.isConnected) {
+            robot.state.requestedMode = modeHandler.decodeMode(
+                input.leftSwitch,
+                input.rightSwitch);
+        }
 
         if (imu1.isAvailable()) imu1.readData(robot.state.imu1);
         if (imu2.isAvailable()) imu2.readData(robot.state.imu2);
@@ -153,7 +164,7 @@ void mainThread(void *pvParameters) {
 
         modeHandler.update(robot);
     
-        modeHandler.getCurrentMode()->execute(robot);
+        modeHandler.getCurrentMode()->execute(robot, input);
 
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }

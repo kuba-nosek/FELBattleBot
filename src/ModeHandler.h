@@ -9,6 +9,7 @@ public:
     ModeHandler();
     
     void update(RobotCore& robot);
+    DriveModeType decodeMode(bool leftSwitch, bool rightSwitch) const;
     DriveModeType getCurrentModeID() const;
     IRobotMode* getCurrentMode() const;
 

@@ -1,26 +1,15 @@
 #pragma once
 #include <stdint.h>
+#include "DriveModeType.h"
 #include "IMU.h"
 #include "LEDHandler.h"
 #include "Motor.h"
 #include "Receiver.h"
-
-enum class DriveModeType {
-    Invalid,
-    Idle,
-    Forward,
-    Spin
-};
-
-struct ReceiverInput {
-    int16_t throttle;
-    int16_t steering;
-};
+#include "ReceiverInput.h"
 
 struct RobotState {
     uint32_t currentMs;
     bool isConnected;
-    ReceiverInput receiver;
     DriveModeType requestedMode;
     IMUData imu1;
     IMUData imu2;
@@ -59,6 +48,6 @@ public:
     // 1. Runs once upon switching to this mode (e.g., to update LED states)
     virtual void init(RobotCore& robot) = 0;
     
-    // 2. Called continuously (100 times per second) within the main control loop
-    virtual void execute(RobotCore& robot) = 0; 
+    // 2. Called continuously from the main control loop with the latest inputs.
+    virtual void execute(RobotCore& robot, const ReceiverInput& input) = 0;
 };

@@ -56,6 +56,28 @@ Manages the visual feedback of the robot using a priority-based indication syste
 *   **`setMeltySync(periodUs, phaseOffsetUs, flashDurationUs)`**: Establishes microsecond-level LED timing required for Melty Brain rotational tracking, enabling direct IMU-to-LED synchronization.
 *   **`isMeltySyncActive()`**: Allows the thread scheduler to adjust loop timing dynamically for maximum precision.
 
+### Receiver Input Mapping
+
+Receiver channels are declared in `include/config.h` through `RECEIVER_INPUT_MAP`.
+Sticks and potentiometers are normalized to `-1000..1000`, while three-position
+switches produce `-1 / 0 / 1` and six-position switches produce `0..5`. Sticks
+apply the configured center deadzone; potentiometers do not. Six-position switch
+values are selected by the midpoint between six equally spaced RC positions.
+
+| Channel | Input | Use |
+| :--- | :--- | :--- |
+| CH1 | Horizontal sticks | Current left/right placeholder mapping |
+| CH2 | Vertical sticks | Current left/right placeholder mapping |
+| CH5 | Two-position switches | Current left/right placeholder mapping; left arms |
+| CH6 | Potentiometers | Current left/right placeholder mapping (`-1000..1000`) |
+| CH7 | Left three-position switch | Power expo selection (`1 / 3 / 5`) |
+| CH8 | Right three-position switch | Mode and steering expo selection |
+| CH11 | Six-position switch | Placeholder six-state control (`0..5`) |
+
+The processed `ReceiverInput` is passed explicitly to each drive mode's `execute`
+method. Forward mode converts its signed potentiometer inputs to `0..1000` expo
+amounts locally.
+
 ---
 
 ## Core Application Logic (`src/`)
@@ -64,14 +86,14 @@ The application-specific logic is encapsulated in the `src/` directory, maintain
 
 ### 1. `ModeHandler` and `Modes/` (State Machine)
 The logical core of the robot utilizing polymorphism to manage diverse driving behaviors without conditional clutter.
-*   **`IRobotMode::execute(RobotCore& robot)`**: An abstract interface implemented by specific classes (`IdleMode`, `ForwardMode`, `SpinMode`) located in the `src/Modes/` directory. Each mode reads inputs from `robot.state` and drives the components via `robot.hw`.
+*   **`IRobotMode::execute(RobotCore& robot, const ReceiverInput& input)`**: An abstract interface implemented by specific classes (`IdleMode`, `ForwardMode`, `SpinMode`) located in the `src/Modes/` directory. Each mode receives the current controls explicitly and drives the components via `robot.hw`.
 *   **`IRobotMode::init(RobotCore& robot)`**: Executed once upon entering a new mode (e.g., triggering a UI animation or resetting IMU filters).
 *   **`ModeHandler::update(RobotCore& robot)`**: Safely manages state transitions and invokes the active mode's logic.
+*   **`ModeHandler::decodeMode(leftSwitch, rightSwitch)`**: Maps the processed mode switches to a `DriveModeType`.
 
 ### 2. `SignalProcessing` (Application Math)
 A local namespace dedicated to math operations specific to this robot's RC configuration.
-*   **`normalizeChannel(channelUs)`**: Converts raw RC values into a symmetric internal scale (-1000 to 1000) while applying a safety deadband.
-*   **`decodeMode(channelUs)`**: Maps the state of the 3-position auxiliary switch to specific `DriveModeType` enumerators.
+*   **`processReceiverInput(rawInput)`**: Applies the compile-time mapping and converts all configured channels into a strongly typed `ReceiverInput`.
 
 ---
 
@@ -110,7 +132,7 @@ The firmware distributes the workload across three independent tasks scheduled b
 
 1. **`ControlLoop` (Main Thread)**
     *   **Priority:** High (3)
-    *   **Frequency:** 100 Hz (10 ms period)
+    *   **Frequency:** 200 Hz (5 ms period)
     *   **Role:** Acts as the data aggregator. Reads inputs (`Receiver`, `IMU`), updates the `RobotState`, and invokes `modeHandler.update(robot)`. The entire hardware execution is delegated internally to the active mode. Uses `vTaskDelayUntil` for strict loop timing.
 
 2. **`CRSF_RX` (Communication Thread)**

@@ -5,7 +5,7 @@
 class SpinMode : public IRobotMode {
 public:
     void init(RobotCore& robot) override;
-    void execute(RobotCore& robot) override;
+    void execute(RobotCore& robot, const ReceiverInput& input) override;
 
 private:
     int32_t rotationalAccelerationMg_ = 0;
@@ -16,8 +16,8 @@ private:
     uint32_t lastUpdateUs_ = 0;
     int8_t spinDirection_ = 1;
 
-    int32_t calculatePower(const RobotCore& robot) const;
-    int32_t calculateAmplitude(const RobotCore& robot) const;
+    int32_t calculatePower(const ReceiverInput& input) const;
+    int32_t calculateAmplitude(const ReceiverInput& input) const;
     uint32_t calculateOffsetPhase(const RobotCore& robot) const;
 
     void calculateAccelerations(const IMUData& imu1, const IMUData& imu2);

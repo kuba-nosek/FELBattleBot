@@ -10,6 +10,18 @@ void ModeHandler::update(RobotCore& robot) {
     }
 }
 
+DriveModeType ModeHandler::decodeMode(
+    bool leftSwitch,
+    bool rightSwitch) const {
+    if (!leftSwitch) {
+        return DriveModeType::Idle;
+    }
+
+    return rightSwitch
+        ? DriveModeType::Forward
+        : DriveModeType::Spin;
+}
+
 void ModeHandler::changeMode(DriveModeType newMode, RobotCore& robot) {
     _currentModeType = newMode;
 

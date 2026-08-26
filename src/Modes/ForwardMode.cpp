@@ -6,13 +6,29 @@
 namespace
 {
 
-    constexpr int32_t POWER_EXPO_AMOUNT = 1000;     // 0 = linear, 1000 = full expo
-    constexpr int32_t POWER_EXPO_POWER = 5;         // 3 or 5
-    constexpr int32_t STEERING_EXPO_AMOUNT = 1000;  // 0 = linear, 1000 = full expo
-    constexpr int32_t STEERING_EXPO_POWER = 3;      // 3 or 5
     constexpr int32_t POWER_SLEW_RATE = 2500;       // command units / second
     constexpr int32_t STEERING_SLEW_RATE = 4000;    // command units / second
     constexpr int32_t MAX_STEERING_REDUCTION = 400; // 40% reduction at full throttle
+
+    int32_t expoPowerFromSwitch(int8_t switchPosition)
+    {
+        if (switchPosition < 0)
+        {
+            return 1;
+        }
+
+        if (switchPosition > 0)
+        {
+            return 5;
+        }
+
+        return 3;
+    }
+
+    int32_t expoAmountFromPotentiometer(int16_t potentiometer)
+    {
+        return (static_cast<int32_t>(potentiometer) + 1000) / 2;
+    }
 
     int64_t intPow(int64_t base, int32_t exponent)
     {
@@ -85,43 +101,55 @@ void ForwardMode::init(RobotCore &robot)
     robot.hw.led->setIndication(LEDIndication::Forward);
 }
 
-void ForwardMode::execute(RobotCore &robot)
+void ForwardMode::execute(RobotCore &robot, const ReceiverInput &input)
 {
     const uint32_t currentMs = robot.state.currentMs;
     const uint32_t deltaMs = currentMs - lastUpdateMs_;
     lastUpdateMs_ = currentMs;
 
-    int32_t throttle = robot.state.receiver.throttle;
-    int32_t steering = robot.state.receiver.steering;
-    int32_t left = throttle;
-    int32_t right = throttle;
+    int32_t throttle = input.rightStickHorizontal;
+    int32_t steering = -input.leftStickVertical;
+    int32_t left = 0;
+    int32_t right = 0;
 
-    applyPowerExpo(throttle);
-    applySteeringExpo(steering);
-    applyPowerSlew(throttle, deltaMs);
-    applySteeringSlew(steering, deltaMs);
-    applySpeedDependentSteering(throttle, steering);
-    // applyDifferentialMix(throttle, steering, left, right);
-    // applyMixNormalization(left, right);
+    applyPowerExpo(
+        throttle,
+        expoAmountFromPotentiometer(input.rightPot),
+        expoPowerFromSwitch(input.right3StateSwitch));
+    applySteeringExpo(
+        steering,
+        expoAmountFromPotentiometer(input.leftPot),
+        expoPowerFromSwitch(input.left3StateSwitch));
+    // applyPowerSlew(throttle, deltaMs);
+    // applySteeringSlew(steering, deltaMs);
+    // applySpeedDependentSteering(throttle, steering);
+    applyDifferentialMix(throttle, steering, left, right);
+    applyMixNormalization(left, right);
 
     robot.hw.leftMotor->setSpeed(static_cast<int16_t>(left), currentMs);
     robot.hw.rightMotor->setSpeed(static_cast<int16_t>(right), currentMs);
 }
 
-void ForwardMode::applyPowerExpo(int32_t &throttle)
+void ForwardMode::applyPowerExpo(
+    int32_t &throttle,
+    int32_t amount,
+    int32_t power)
 {
     throttle = applyExpo(
         throttle,
-        POWER_EXPO_AMOUNT,
-        POWER_EXPO_POWER);
+        amount,
+        power);
 }
 
-void ForwardMode::applySteeringExpo(int32_t &steering)
+void ForwardMode::applySteeringExpo(
+    int32_t &steering,
+    int32_t amount,
+    int32_t power)
 {
     steering = applyExpo(
         steering,
-        STEERING_EXPO_AMOUNT,
-        STEERING_EXPO_POWER);
+        amount,
+        power);
 }
 
 void ForwardMode::applyPowerSlew(

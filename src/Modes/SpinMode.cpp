@@ -89,11 +89,11 @@ void SpinMode::init(RobotCore& robot)
     robot.hw.led->setMeltySync(0, 0, LED_FLASH_DURATION_US);
 }
 
-void SpinMode::execute(RobotCore& robot)
+void SpinMode::execute(RobotCore& robot, const ReceiverInput& input)
 {
     const uint32_t currentUs = micros();
-    const int32_t power = calculatePower(robot);
-    const int32_t amplitude = calculateAmplitude(robot);
+    const int32_t power = calculatePower(input);
+    const int32_t amplitude = calculateAmplitude(input);
     const uint32_t offsetPhase = calculateOffsetPhase(robot);
 
     calculateAccelerations(robot.state.imu1, robot.state.imu2);
@@ -104,14 +104,14 @@ void SpinMode::execute(RobotCore& robot)
     updateMeltySync(robot, currentUs);
 }
 
-int32_t SpinMode::calculatePower(const RobotCore& robot) const
+int32_t SpinMode::calculatePower(const ReceiverInput& input) const
 {
-    return robot.state.receiver.throttle;
+    return input.leftStickVertical;
 }
 
-int32_t SpinMode::calculateAmplitude(const RobotCore& robot) const
+int32_t SpinMode::calculateAmplitude(const ReceiverInput& input) const
 {
-    return robot.state.receiver.steering;
+    return input.leftStickHorizontal;
 }
 
 uint32_t SpinMode::calculateOffsetPhase(const RobotCore&) const

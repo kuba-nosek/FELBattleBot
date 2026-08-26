@@ -4,5 +4,5 @@
 class IdleMode : public IRobotMode {
 public:
     void init(RobotCore& robot) override;
-    void execute(RobotCore& robot) override;
+    void execute(RobotCore& robot, const ReceiverInput& input) override;
 };
