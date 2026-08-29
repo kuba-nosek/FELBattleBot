@@ -43,9 +43,9 @@ Manages high-g accelerometer data acquisition over the SPI bus. Each instance st
 *   **`writeConfig(reg, value)`**: Allows dynamic modification of sensor parameters during runtime.
 
 ### 3. `Receiver` (CRSF Protocol)
-An isolated, lock-free driver for parsing the ExpressLRS / Crossfire serial protocol via UART.
+An isolated driver for parsing the ExpressLRS / Crossfire serial protocol via UART.
 *   **`connect()` & `update(currentMs)`**: Initializes the UART at 420000 baud, reads the buffer, identifies frame boundaries, validates CRC8, and decodes RC channels/link statistics natively.
-*   **`getChannel(index)`**: Safely returns the latest pulse width (988–2012 µs) for the requested channel.
+*   **`getChannelsSnapshot()`**: Returns one coherent snapshot of all channel pulse widths (988–2012 µs) without mixing values from different CRSF frames.
 *   **`sendTelemetry(text, currentMs)`**: Packages and transmits standard CRSF telemetry frames back to the radio transmitter.
 *   **`onDisconnect(callback)`**: Registers a safety callback executed immediately upon signal loss.
 

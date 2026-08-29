@@ -3,10 +3,7 @@
 #include <stdint.h>
 
 #include "config.h"
-
-struct ReceiverInputRaw {
-    uint16_t channelsUs[RobotConfig::RC_CHANNEL_COUNT]{};
-};
+#include "Receiver.h"
 
 #define RECEIVER_FIELD_TYPE_Stick int16_t
 #define RECEIVER_FIELD_TYPE_Potentiometer int16_t
@@ -29,7 +26,7 @@ struct ReceiverInput {
 
 #define RECEIVER_VALIDATE_CHANNEL(name, type, channel) \
     static_assert( \
-        (channel) >= 1 && (channel) <= RobotConfig::RC_CHANNEL_COUNT, \
+        (channel) >= 1 && (channel) <= ReceiverChannels::COUNT, \
         "Receiver channel for " #name " must be in the range 1..16");
 
 RECEIVER_INPUT_MAP(RECEIVER_VALIDATE_CHANNEL)

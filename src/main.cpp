@@ -124,8 +124,6 @@ void loop() {
 // ====================================================================
 
 void mainThread(void *pvParameters) {
-    ReceiverInputRaw rawReceiverInput{};
-
     robot.hw.leftMotor = &motorLeft;
     robot.hw.rightMotor = &motorRight;
     robot.hw.led = &ledHandler;
@@ -138,16 +136,17 @@ void mainThread(void *pvParameters) {
     modeHandler.update(robot);
 
     while (true) {
+        // NOTE: why?
         robot.state.currentMs = millis();
 
         robot.state.isConnected = receiver.isConnected();
 
-        for (uint8_t channel = 0; channel < RC_CHANNEL_COUNT; ++channel) {
-            rawReceiverInput.channelsUs[channel] = receiver.getChannel(channel);
-        }
+        // Capture one coherent frame so processing cannot mix channel values
+        // while the receiver task publishes the next CRSF frame.
+        const ReceiverChannels channels = receiver.getChannelsSnapshot();
 
         const ReceiverInput input =
-            SignalProcessing::processReceiverInput(rawReceiverInput);
+            SignalProcessing::processReceiverInput(channels);
 
         if (robot.state.isConnected) {
             robot.state.requestedMode = modeHandler.decodeMode(

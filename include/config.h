@@ -48,7 +48,7 @@ namespace RobotConfig {
     // ==========================================
     // RTOS thread timing
     // ==========================================
-    constexpr uint32_t TASK_CONTROL_HZ = 200; // Main thread frequency (200 Hz = 5 ms)
+    constexpr uint32_t TASK_CONTROL_HZ = 400; // Main thread frequency (200 Hz = 5 ms)
     constexpr uint32_t TASK_RECEIVER_MS = 2;  // UART readout interval
     constexpr uint32_t TASK_LED_MS = 20;      // LED update interval
 
@@ -58,8 +58,6 @@ namespace RobotConfig {
     constexpr uint16_t RC_CHANNEL_MIN = 988;
     constexpr uint16_t RC_CHANNEL_MAX = 2012;
     constexpr uint16_t RC_CHANNEL_CENTER = 1500;
-    constexpr uint8_t RC_CHANNEL_COUNT = 16;
-    
     // Deadband to prevent motor drift when sticks are centered
     constexpr uint16_t RC_DEADBAND = 20;
     

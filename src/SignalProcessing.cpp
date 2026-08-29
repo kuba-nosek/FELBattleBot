@@ -127,12 +127,12 @@ namespace
 
 namespace SignalProcessing
 {
-    ReceiverInput processReceiverInput(const ReceiverInputRaw& rawInput)
+    ReceiverInput processReceiverInput(const ReceiverChannels& channels)
     {
         ReceiverInput input{};
 
 #define RECEIVER_PROCESS_FIELD(name, type, channel) \
-        input.name = process##type(rawInput.channelsUs[(channel) - 1]);
+        input.name = process##type(channels.channelsUs[(channel) - 1]);
 
         RECEIVER_INPUT_MAP(RECEIVER_PROCESS_FIELD)
 

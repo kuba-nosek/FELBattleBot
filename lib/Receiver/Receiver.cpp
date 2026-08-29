@@ -42,7 +42,9 @@ Receiver::Receiver(uint8_t rxPin, uint8_t txPin)
       _connected(false), _disconnectCallback(nullptr) {
     _position = 0;
     _expectedSize = 0;
-    for (int i = 0; i < 16; i++) _channels[i] = 1500; // Initialize channels to neutral
+    for (size_t i = 0; i < ReceiverChannels::COUNT; ++i) {
+        _channels[i] = 1500; // Initialize channels to neutral
+    }
 }
 
 void Receiver::connect() {
@@ -57,8 +59,16 @@ bool Receiver::isConnected() const {
     return _connected;
 }
 
-uint16_t Receiver::getChannel(size_t index) const {
-    return (index < 16) ? _channels[index] : 1500;
+ReceiverChannels Receiver::getChannelsSnapshot() const {
+    ReceiverChannels snapshot{};
+
+    portENTER_CRITICAL(&_channelsMux);
+    for (size_t channel = 0; channel < ReceiverChannels::COUNT; ++channel) {
+        snapshot.channelsUs[channel] = _channels[channel];
+    }
+    portEXIT_CRITICAL(&_channelsMux);
+
+    return snapshot;
 }
 
 ReceiverStats Receiver::getStatistics() const {
@@ -126,20 +136,30 @@ void Receiver::processByte(uint8_t byte) {
         
         // Decode RC Joystick/Switch Data[cite: 1]
         if (frameType == RC_CHANNELS_PACKED) {
+            ReceiverChannels decodedChannels{};
             const uint8_t *payload = &_frame[3];
             uint32_t bitBuffer = 0;
             uint8_t bitsAvailable = 0;
             size_t payloadIndex = 0;
 
-            for (size_t channelIndex = 0; channelIndex < 16; ++channelIndex) {
+            for (size_t channelIndex = 0;
+                 channelIndex < ReceiverChannels::COUNT;
+                 ++channelIndex) {
                 while (bitsAvailable < 11) {
                     bitBuffer |= static_cast<uint32_t>(payload[payloadIndex++]) << bitsAvailable;
                     bitsAvailable += 8;
                 }
-                _channels[channelIndex] = rawToMicroseconds(bitBuffer & 0x07FF);
+                decodedChannels.channelsUs[channelIndex] =
+                    rawToMicroseconds(bitBuffer & 0x07FF);
                 bitBuffer >>= 11;
                 bitsAvailable -= 11;
             }
+
+            portENTER_CRITICAL(&_channelsMux);
+            for (size_t channel = 0; channel < ReceiverChannels::COUNT; ++channel) {
+                _channels[channel] = decodedChannels.channelsUs[channel];
+            }
+            portEXIT_CRITICAL(&_channelsMux);
             
             _lastValidFrameMs = millis();
             _connected = true;
