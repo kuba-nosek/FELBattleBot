@@ -39,7 +39,7 @@ Handles bidirectional motor control using the digital DShot300 protocol via the 
 ### 2. `IMU` (H3LIS331DL Accelerometer)
 Manages high-g accelerometer data acquisition over the SPI bus. Each instance stores its own calibration offsets.
 *   **`init()`**: Verifies the sensor ID and writes initial configurations to the control registers.
-*   **`readData(IMUData& dataOut)`**: Reads all 6 coordinate registers in a single SPI transaction, applies sensitivity multipliers, subtracts offsets, and outputs standard `g` values.
+*   **`readData(IMUData& dataOut)`**: Reads all 6 coordinate registers in a single SPI transaction, applies calibration, and outputs floating-point acceleration in g.
 *   **`writeConfig(reg, value)`**: Allows dynamic modification of sensor parameters during runtime.
 
 ### 3. `Receiver` (CRSF Protocol)

@@ -37,20 +37,20 @@ namespace RobotConfig {
     // ==========================================
     // IMU calibration [g]
     // ==========================================
-    constexpr float IMU1_OFFSET_X = 0.08f;
-    constexpr float IMU1_OFFSET_Y = 0.57f;
-    constexpr float IMU1_OFFSET_Z = 2.85f;
+    constexpr float IMU1_OFFSET_X_G = 0.08f;
+    constexpr float IMU1_OFFSET_Y_G = 0.57f;
+    constexpr float IMU1_OFFSET_Z_G = 2.85f;
 
-    constexpr float IMU2_OFFSET_X = -0.30f;
-    constexpr float IMU2_OFFSET_Y = 0.15f;
-    constexpr float IMU2_OFFSET_Z = 1.94f;
+    constexpr float IMU2_OFFSET_X_G = -0.30f;
+    constexpr float IMU2_OFFSET_Y_G = 0.15f;
+    constexpr float IMU2_OFFSET_Z_G = 1.94f;
 
     // ==========================================
     // RTOS thread timing
     // ==========================================
-    constexpr uint32_t TASK_CONTROL_HZ = 400; // Main thread frequency (200 Hz = 5 ms)
+    constexpr uint32_t TASK_CONTROL_HZ = 200; // Main thread frequency (200 Hz = 5 ms)
     constexpr uint32_t TASK_RECEIVER_MS = 2;  // UART readout interval
-    constexpr uint32_t TASK_LED_MS = 20;      // LED update interval
+    constexpr uint32_t TASK_LED_MS = 40;      // LED update interval
 
     // ==========================================
     // RC & Signal Processing

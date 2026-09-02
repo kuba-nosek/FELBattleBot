@@ -14,9 +14,17 @@ namespace {
     constexpr uint8_t EXPECTED_ID  = 0x32;
 }
 
-IMU::IMU(uint8_t csPin, float offsetX, float offsetY, float offsetZ)
-    : _csPin(csPin), _offsetX(offsetX), _offsetY(offsetY), _offsetZ(offsetZ), 
-      _sensitivityMultiplier(0.049), _isAvailable(false) {
+IMU::IMU(
+    uint8_t csPin,
+    float offsetXG,
+    float offsetYG,
+    float offsetZG)
+    : _csPin(csPin),
+      _offsetXG(offsetXG),
+      _offsetYG(offsetYG),
+      _offsetZG(offsetZG),
+      _sensitivityGPerLsb(0.049f),
+      _isAvailable(false) {
 }
 
 bool IMU::init() {
@@ -52,9 +60,9 @@ void IMU::writeConfig(uint8_t reg, uint8_t value) {
     SPI.transfer(value);
     digitalWrite(_csPin, HIGH);
 
-    // Update sensitivity multiplier if scale (CTRL_REG4) is modified dynamically
+    // Update sensitivity if scale (CTRL_REG4) is modified dynamically.
     if (reg == CTRL_REG4) {
-        _sensitivityMultiplier = getSensitivityMultiplier(value);
+        _sensitivityGPerLsb = getSensitivityGPerLsb(value);
     }
 }
 
@@ -77,13 +85,13 @@ void IMU::readMultipleRegisters(uint8_t reg, uint8_t *buffer, uint8_t len) {
     digitalWrite(_csPin, HIGH);
 }
 
-float IMU::getSensitivityMultiplier(uint8_t ctrlReg4) {
+float IMU::getSensitivityGPerLsb(uint8_t ctrlReg4) {
     // Extract FS1 and FS0 bits to determine scale
     uint8_t fs_bits = (ctrlReg4 >> 4) & 0x03; 
-    if (fs_bits == 0x00) return 0.049;      // +-100g
-    if (fs_bits == 0x01) return 0.098;      // +-200g
-    if (fs_bits == 0x03) return 0.195;      // +-400g
-    return 0.049;
+    if (fs_bits == 0x00) return 0.049f; // +-100g
+    if (fs_bits == 0x01) return 0.098f; // +-200g
+    if (fs_bits == 0x03) return 0.195f; // +-400g
+    return 0.049f;
 }
 
 bool IMU::readData(IMUData& dataOut) {
@@ -97,10 +105,9 @@ bool IMU::readData(IMUData& dataOut) {
     int16_t y_12bit = (int16_t)(data[2] | (data[3] << 8)) >> 4;
     int16_t z_12bit = (int16_t)(data[4] | (data[5] << 8)) >> 4;
 
-    // Apply sensitivity scale and user-defined calibration offsets
-    dataOut.x = (x_12bit * _sensitivityMultiplier) - _offsetX;
-    dataOut.y = (y_12bit * _sensitivityMultiplier) - _offsetY;
-    dataOut.z = (z_12bit * _sensitivityMultiplier) - _offsetZ;
+    dataOut.xG = (x_12bit * _sensitivityGPerLsb) - _offsetXG;
+    dataOut.yG = (y_12bit * _sensitivityGPerLsb) - _offsetYG;
+    dataOut.zG = (z_12bit * _sensitivityGPerLsb) - _offsetZG;
 
     return true;
 }

@@ -8,26 +8,25 @@ public:
     void execute(RobotCore& robot, const ReceiverInput& input) override;
 
 private:
-    int32_t rotationalAccelerationMg_ = 0;
-    uint32_t translationalAccelerationMg_ = 0;
-    uint32_t angularSpeedMilliRadPerSec_ = 0;
-    uint64_t angularSpeedPhasePerSec_ = 0;
-    uint32_t headingPhase_ = 0;
+    float centripetalAccelerationMps2_ = 0.0f;
+    float angularSpeedRadPerSec_ = 0.0f;
+    float headingRadians_ = 0.0f;
     uint32_t lastUpdateUs_ = 0;
     int8_t spinDirection_ = 1;
 
     int32_t calculatePower(const ReceiverInput& input) const;
     int32_t calculateAmplitude(const ReceiverInput& input) const;
-    uint32_t calculateOffsetPhase(const RobotCore& robot) const;
+    float calculateOffsetRadians(const RobotCore& robot) const;
+    float calculateSensorRadiusMeters(const ReceiverInput& input) const;
 
-    void calculateAccelerations(const IMUData& imu1, const IMUData& imu2);
-    void calculateAngularSpeed();
+    void updateCentripetalAcceleration(const IMUData& imu);
+    void calculateAngularSpeed(float sensorRadiusMeters);
     void updateSpinDirection(int32_t power);
     void updateHeading(uint32_t currentUs);
-    void applyMeltyMix(
+    void commandSpinThrottle(
         RobotCore& robot,
         int32_t power,
         int32_t amplitude,
-        uint32_t offsetPhase);
-    void updateMeltySync(RobotCore& robot, uint32_t currentUs);
+        float offsetRadians);
+    void updateLightIndication(RobotCore& robot, uint32_t currentUs);
 };

@@ -22,8 +22,8 @@ using namespace RobotConfig;
 Motor motorLeft(PIN_MOTOR_L, RMT_CHANNEL_0, false);
 Motor motorRight(PIN_MOTOR_R, RMT_CHANNEL_1, true);
 
-IMU imu1(PIN_SPI_CS1, IMU1_OFFSET_X, IMU1_OFFSET_Y, IMU1_OFFSET_Z);
-IMU imu2(PIN_SPI_CS2, IMU2_OFFSET_X, IMU2_OFFSET_Y, IMU2_OFFSET_Z);
+IMU imu1(PIN_SPI_CS1, IMU1_OFFSET_X_G, IMU1_OFFSET_Y_G, IMU1_OFFSET_Z_G);
+IMU imu2(PIN_SPI_CS2, IMU2_OFFSET_X_G, IMU2_OFFSET_Y_G, IMU2_OFFSET_Z_G);
 
 Receiver receiver(PIN_CRSF_RX, PIN_CRSF_TX);
 LEDHandler ledHandler(PIN_LED);
@@ -42,6 +42,32 @@ void onFailsafe() {
   robot.hw.led->setIndication(LEDIndication::Failsafe);
 }
 
+void sendSerialTelemetry(ReceiverInput input)
+{
+    static uint32_t lastPrintMs = 0;
+
+    if (robot.state.currentMs - lastPrintMs < 100)
+    {
+        return;
+    }
+
+    // Serial.printf(
+    //     "IMU1[g]  X:%+8.3f  Y:%+8.3f  Z:%+8.3f | "
+    //     "IMU2[g]  X:%+8.3f  Y:%+8.3f  Z:%+8.3f\n",
+    //     robot.state.imu1.xG,
+    //     robot.state.imu1.yG,
+    //     robot.state.imu1.zG,
+    //     robot.state.imu2.xG,
+    //     robot.state.imu2.yG,
+    //     robot.state.imu2.zG);
+
+    Serial.printf(
+        "stick:%8.3d\n",
+        input.leftStickVertical);
+
+    lastPrintMs = robot.state.currentMs;
+}
+
 #if ENABLE_DEBUG_AP 
 void sendWiFiTelemetry() {
 
@@ -49,9 +75,13 @@ void sendWiFiTelemetry() {
         if (robot.state.currentMs - lastUdpMs > 50) {
             char payload[128];
             snprintf(payload, sizeof(payload), 
-                "IMU1: X=%.2f Y=%.2f Z=%.2f | IMU2: X=%.2f Y=%.2f Z=%.2f", 
-                robot.state.imu1.x, robot.state.imu1.y, robot.state.imu1.z,
-                robot.state.imu2.x, robot.state.imu2.y, robot.state.imu2.z);
+                "IMU1[g]: X=%.3f Y=%.3f Z=%.3f | IMU2[g]: X=%.3f Y=%.3f Z=%.3f",
+                robot.state.imu1.xG,
+                robot.state.imu1.yG,
+                robot.state.imu1.zG,
+                robot.state.imu2.xG,
+                robot.state.imu2.yG,
+                robot.state.imu2.zG);
             
             udp.beginPacket(UDP_BROADCAST_IP, UDP_PORT);
             udp.print(payload);
@@ -156,6 +186,8 @@ void mainThread(void *pvParameters) {
 
         if (imu1.isAvailable()) imu1.readData(robot.state.imu1);
         if (imu2.isAvailable()) imu2.readData(robot.state.imu2);
+
+        sendSerialTelemetry(input);
 
         #if ENABLE_DEBUG_AP 
             sendWiFiTelemetry();
