@@ -51,6 +51,12 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input)
     updateCentripetalAcceleration(robot.state.imu1);
     calculateAngularSpeed(sensorRadiusMeters);
     updateSpinDirection(power);
+    robot.state.rpm = spinDirection_ * angularSpeedRadPerSec_ *
+        (60.0f / TWO_PI_RADIANS);
+    robot.state.rpmValid = std::isfinite(robot.state.rpm);
+    if (!robot.state.rpmValid) {
+        robot.state.rpm = 0.0f;
+    }
     updateHeading(currentUs);
     commandSpinThrottle(robot, power, amplitude, offsetRadians);
     updateLightIndication(robot, currentUs);

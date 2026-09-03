@@ -8,6 +8,7 @@ The architecture is explicitly prepared for advanced kinetic operations, includi
 - [System Architecture](#system-architecture)
 - [Custom Libraries (`lib/`)](#custom-libraries-lib)
 - [Core Application Logic (`src/`)](#core-application-logic-src)
+- [EdgeTX Telemetry](#edgetx-telemetry)
 - [Visual Feedback (LED UI)](#visual-feedback-led-ui)
 - [FreeRTOS Threading Structure](#freertos-threading-structure)
 - [Safety and Failsafes](#safety-and-failsafes)
@@ -44,9 +45,10 @@ Manages high-g accelerometer data acquisition over the SPI bus. Each instance st
 
 ### 3. `Receiver` (CRSF Protocol)
 An isolated driver for parsing the ExpressLRS / Crossfire serial protocol via UART.
-*   **`connect()` & `update(currentMs)`**: Initializes the UART at 420000 baud, reads the buffer, identifies frame boundaries, validates CRC8, and decodes RC channels/link statistics natively.
+*   **`connect()` & `update()`**: Initializes the UART at 420000 baud, reads the buffer, identifies frame boundaries, validates CRC8, and decodes RC channels/link statistics natively.
 *   **`getChannelsSnapshot()`**: Returns one coherent snapshot of all channel pulse widths (988–2012 µs) without mixing values from different CRSF frames.
-*   **`sendTelemetry(text, currentMs)`**: Packages and transmits standard CRSF telemetry frames back to the radio transmitter.
+*   **`sendTelemetry(text, currentMs)`**: Packages and transmits a standard CRSF flight-mode text frame.
+*   **`sendBattlebotTelemetry(snapshot, currentMs, intervalMs)`**: Sends the private `0x80/0xF3` packet decoded by the Boxer Lua screen.
 *   **`onDisconnect(callback)`**: Registers a safety callback executed immediately upon signal loss.
 
 ### 4. `LEDHandler` (Status and Sync UI)
@@ -94,6 +96,19 @@ The logical core of the robot utilizing polymorphism to manage diverse driving b
 ### 2. `SignalProcessing` (Application Math)
 A local namespace dedicated to math operations specific to this robot's RC configuration.
 *   **`processReceiverInput(rawInput)`**: Applies the compile-time mapping and converts all configured channels into a strongly typed `ReceiverInput`.
+
+---
+
+## EdgeTX Telemetry
+
+The control loop sends signed Spin-mode RPM, the averaged XYZ output of both
+high-g accelerometers, and each accelerometer's peak vector magnitude at 10 Hz.
+The master enable and individual field switches are in the custom telemetry
+section of `include/config.h`.
+
+Install and model-setup instructions for the RadioMaster Boxer are in
+[`edgetx/README.md`](edgetx/README.md). The matching screen script is
+`edgetx/SCRIPTS/TELEMETRY/BBOT.lua`.
 
 ---
 

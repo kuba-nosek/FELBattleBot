@@ -2,19 +2,26 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <freertos/FreeRTOS.h>
+#include "BattlebotTelemetry.h"
 
 // Signal loss callback signature
 typedef void (*DisconnectCallback)();
 
 struct ReceiverStats {
-    uint8_t linkQuality;
-    int16_t activeRssiDbm;
+    uint8_t linkQuality = 0;
+    int16_t activeRssiDbm = 0;
 };
 
 struct ReceiverChannels {
     static constexpr size_t COUNT = 16;
 
     uint16_t channelsUs[COUNT]{};
+};
+
+struct TelemetryTxStats {
+    uint32_t sentPackets = 0;
+    uint32_t skippedWrites = 0;
+    uint32_t partialWrites = 0;
 };
 
 class Receiver {
@@ -30,6 +37,11 @@ public:
     ReceiverChannels getChannelsSnapshot() const;
     ReceiverStats getStatistics() const;
     void sendTelemetry(const char* statusText, uint32_t currentMs);
+    bool sendBattlebotTelemetry(
+        const BattlebotTelemetry::Snapshot& snapshot,
+        uint32_t currentMs,
+        uint32_t intervalMs);
+    TelemetryTxStats getTelemetryTxStats() const;
 
 private:
     uint8_t _rxPin;
@@ -37,7 +49,10 @@ private:
     
     uint32_t _lastValidFrameMs;
     uint32_t _lastTelemetryMs;
+    uint32_t _lastBattlebotTelemetryMs;
+    uint8_t _telemetrySequence;
     ReceiverStats _stats;
+    TelemetryTxStats _telemetryTxStats;
     
     bool _connected;
     DisconnectCallback _disconnectCallback;

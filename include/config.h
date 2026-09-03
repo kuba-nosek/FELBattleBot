@@ -53,6 +53,22 @@ namespace RobotConfig {
     constexpr uint32_t TASK_LED_MS = 40;      // LED update interval
 
     // ==========================================
+    // Custom CRSF telemetry (EdgeTX BBOT.lua)
+    // ==========================================
+    // This uses a private payload (0xF3) inside CRSF frame type 0x80.
+    // Do not enable it together with ArduPilot/Yaapu passthrough telemetry.
+    constexpr bool TELEMETRY_ENABLED = true;
+    constexpr uint32_t TELEMETRY_INTERVAL_MS = 100; // 10 packets/second
+
+    constexpr bool TELEMETRY_SEND_RPM = true;
+    constexpr bool TELEMETRY_SEND_ACCEL1_X = true;
+    constexpr bool TELEMETRY_SEND_ACCEL1_Y = true;
+    constexpr bool TELEMETRY_SEND_ACCEL1_Z = true;
+    constexpr bool TELEMETRY_SEND_ACCEL2_X = true;
+    constexpr bool TELEMETRY_SEND_ACCEL2_Y = true;
+    constexpr bool TELEMETRY_SEND_ACCEL2_Z = true;
+
+    // ==========================================
     // RC & Signal Processing
     // ==========================================
     constexpr uint16_t RC_CHANNEL_MIN = 988;

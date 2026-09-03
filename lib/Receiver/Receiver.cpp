@@ -38,7 +38,8 @@ namespace {
 }
 
 Receiver::Receiver(uint8_t rxPin, uint8_t txPin) 
-    : _rxPin(rxPin), _txPin(txPin), _lastValidFrameMs(0), _lastTelemetryMs(0), 
+    : _rxPin(rxPin), _txPin(txPin), _lastValidFrameMs(0), _lastTelemetryMs(0),
+      _lastBattlebotTelemetryMs(0), _telemetrySequence(0),
       _connected(false), _disconnectCallback(nullptr) {
     _position = 0;
     _expectedSize = 0;
@@ -73,6 +74,10 @@ ReceiverChannels Receiver::getChannelsSnapshot() const {
 
 ReceiverStats Receiver::getStatistics() const {
     return _stats;
+}
+
+TelemetryTxStats Receiver::getTelemetryTxStats() const {
+    return _telemetryTxStats;
 }
 
 // ====================================================================
@@ -206,4 +211,38 @@ void Receiver::sendTelemetry(const char* statusText, uint32_t currentMs) {
         crsfSerial.write(frame, frameSize);
         _lastTelemetryMs = currentMs;
     }
+}
+
+bool Receiver::sendBattlebotTelemetry(
+    const BattlebotTelemetry::Snapshot& snapshot,
+    uint32_t currentMs,
+    uint32_t intervalMs)
+{
+    if (!_connected ||
+        currentMs - _lastBattlebotTelemetryMs < intervalMs) {
+        return false;
+    }
+
+    uint8_t frame[BattlebotTelemetry::FRAME_SIZE];
+    const size_t frameSize = BattlebotTelemetry::buildFrame(
+        frame, sizeof(frame), _telemetrySequence, snapshot);
+    if (frameSize == 0) {
+        return false;
+    }
+
+    if (crsfSerial.availableForWrite() < static_cast<int>(frameSize)) {
+        ++_telemetryTxStats.skippedWrites;
+        return false;
+    }
+
+    const size_t bytesWritten = crsfSerial.write(frame, frameSize);
+    if (bytesWritten != frameSize) {
+        ++_telemetryTxStats.partialWrites;
+        return false;
+    }
+
+    _lastBattlebotTelemetryMs = currentMs;
+    ++_telemetrySequence;
+    ++_telemetryTxStats.sentPackets;
+    return true;
 }
