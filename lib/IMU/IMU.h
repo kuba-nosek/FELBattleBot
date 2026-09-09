@@ -2,9 +2,9 @@
 #include <stdint.h>
 
 struct IMUData {
-    float xG = 0.0f;
-    float yG = 0.0f;
-    float zG = 0.0f;
+    float xMps2 = 0.0f;
+    float yMps2 = 0.0f;
+    float zMps2 = 0.0f;
 };
 
 class IMU {

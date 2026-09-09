@@ -3,12 +3,15 @@
 #include <algorithm>
 #include <cstdlib>
 
+#include "config.h"
+
 namespace
 {
-
-    constexpr int32_t POWER_SLEW_RATE = 2500;       // command units / second
-    constexpr int32_t STEERING_SLEW_RATE = 4000;    // command units / second
-    constexpr int32_t MAX_STEERING_REDUCTION = 400; // 40% reduction at full throttle
+    struct MotorPowers
+    {
+        int32_t left;
+        int32_t right;
+    };
 
     int32_t expoPowerFromSwitch(int8_t switchPosition)
     {
@@ -25,12 +28,13 @@ namespace
         return 3;
     }
 
-    int32_t expoAmountFromPotentiometer(int16_t potentiometer)
+    int32_t unitScaleFromPotentiometer(int16_t potentiometer)
     {
-        return (static_cast<int32_t>(potentiometer) + 1000) / 2;
+        return (static_cast<int32_t>(potentiometer) +
+            RobotConfig::RC_OUTPUT_SCALE) / 2;
     }
 
-    int64_t intPow(int64_t base, int32_t exponent)
+    int64_t integerPower(int64_t base, int32_t exponent)
     {
         int64_t result = 1;
 
@@ -42,186 +46,95 @@ namespace
         return result;
     }
 
-    // y = (1 - a)x + a*x^expo_power
-    // a = expo_amount / 1000
-    // x, y in [-1000, 1000]
-    // expo_amount in [0, 1000]
-    int32_t applyExpo(
-        int32_t x,
-        int32_t expo_amount,
-        int32_t expo_power)
+    // Blend the linear and exponential curves; amount is scaled 0..1000.
+    int32_t applyExpo(int32_t input, int32_t amount, int32_t exponent)
     {
+        constexpr int64_t SCALE = RobotConfig::RC_OUTPUT_SCALE;
 
-        constexpr int64_t SCALE = 1000;
+        const int64_t curvedInput =
+            integerPower(input, exponent) /
+            integerPower(SCALE, exponent - 1);
 
-        const int64_t x64 = x;
-        const int64_t amount64 = expo_amount;
-
-        const int64_t xp = intPow(x64, expo_power) / intPow(SCALE, expo_power - 1);
-
-        return ((SCALE - amount64) * x64 + amount64 * xp) / SCALE;
+        return static_cast<int32_t>(
+            ((SCALE - amount) * input + amount * curvedInput) / SCALE);
     }
 
-    int32_t applySlew(
-        int32_t current,
-        int32_t target,
-        int32_t rate,
-        uint32_t deltaMs)
+    MotorPowers mixMotorPowers(int32_t throttle, int32_t steering)
     {
+        constexpr int64_t SCALE = RobotConfig::RC_OUTPUT_SCALE;
 
-        const int64_t rate64 = rate;
-        const int64_t deltaMs64 = deltaMs;
+        int32_t turn = 0;
 
-        const int32_t maxChange =
-            (rate64 * deltaMs64) / 1000;
-
-        const int32_t difference = target - current;
-
-        if (difference > maxChange)
+        if (throttle == 0)
         {
-            return current + maxChange;
+            turn = static_cast<int32_t>(
+                static_cast<int64_t>(steering) *
+                RobotConfig::FORWARD_MAX_STANDING_TURN_POWER /
+                SCALE);
+        }
+        else
+        {
+            // The total difference between the motor commands is at most the
+            // configured percentage of the signed throttle command.
+            turn = static_cast<int32_t>(
+                static_cast<int64_t>(throttle) * steering *
+                RobotConfig::FORWARD_MAX_MOVING_TURN_PERCENT /
+                (2 * SCALE * 100));
         }
 
-        if (difference < -maxChange)
+        MotorPowers powers{
+            throttle + turn,
+            throttle - turn
+        };
+
+        const int32_t largestMagnitude =
+            std::max(std::abs(powers.left), std::abs(powers.right));
+
+        if (largestMagnitude > SCALE)
         {
-            return current - maxChange;
+            powers.left = static_cast<int32_t>(
+                static_cast<int64_t>(powers.left) * SCALE /
+                largestMagnitude);
+            powers.right = static_cast<int32_t>(
+                static_cast<int64_t>(powers.right) * SCALE /
+                largestMagnitude);
         }
 
-        return target;
+        return powers;
     }
-} // namespace
+}
 
-void ForwardMode::init(RobotCore &robot)
+void ForwardMode::init(RobotCore& robot)
 {
-    limitedThrottle_ = 0;
-    limitedSteering_ = 0;
-    lastUpdateMs_ = robot.state.currentMs;
-
     robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
     robot.hw.led->setIndication(LEDIndication::Forward);
 }
 
-void ForwardMode::execute(RobotCore &robot, const ReceiverInput &input)
+void ForwardMode::execute(RobotCore& robot, const ReceiverInput& input)
 {
-    const uint32_t currentMs = robot.state.currentMs;
-    const uint32_t deltaMs = currentMs - lastUpdateMs_;
-    lastUpdateMs_ = currentMs;
-
-    int32_t throttle = input.rightStickHorizontal;
-    int32_t steering = -input.leftStickVertical;
-    int32_t left = 0;
-    int32_t right = 0;
-
-    applyPowerExpo(
-        throttle,
-        expoAmountFromPotentiometer(input.rightPot),
-        expoPowerFromSwitch(input.right3StateSwitch));
-    applySteeringExpo(
-        steering,
-        expoAmountFromPotentiometer(input.leftPot),
+    const int32_t rawThrottle = input.leftStickVertical;
+    const int32_t throttle = applyExpo(
+        rawThrottle,
+        unitScaleFromPotentiometer(input.leftPot),
         expoPowerFromSwitch(input.left3StateSwitch));
-    // applyPowerSlew(throttle, deltaMs);
-    // applySteeringSlew(steering, deltaMs);
-    // applySpeedDependentSteering(throttle, steering);
-    applyDifferentialMix(throttle, steering, left, right);
-    applyMixNormalization(left, right);
 
-    robot.hw.leftMotor->setSpeed(static_cast<int16_t>(left), currentMs);
-    robot.hw.rightMotor->setSpeed(static_cast<int16_t>(right), currentMs);
-}
+    const int32_t curvedSteering = applyExpo(
+        input.rightStickHorizontal,
+        RobotConfig::RC_OUTPUT_SCALE,
+        expoPowerFromSwitch(input.right3StateSwitch));
+    const int32_t steering = static_cast<int32_t>(
+        static_cast<int64_t>(curvedSteering) *
+        unitScaleFromPotentiometer(input.rightPot) /
+        RobotConfig::RC_OUTPUT_SCALE);
 
-void ForwardMode::applyPowerExpo(
-    int32_t &throttle,
-    int32_t amount,
-    int32_t power)
-{
-    throttle = applyExpo(
+    const MotorPowers powers = mixMotorPowers(
         throttle,
-        amount,
-        power);
-}
+        steering);
 
-void ForwardMode::applySteeringExpo(
-    int32_t &steering,
-    int32_t amount,
-    int32_t power)
-{
-    steering = applyExpo(
-        steering,
-        amount,
-        power);
-}
-
-void ForwardMode::applyPowerSlew(
-    int32_t &throttle,
-    uint32_t deltaMs)
-{
-
-    limitedThrottle_ = applySlew(
-        limitedThrottle_,
-        throttle,
-        POWER_SLEW_RATE,
-        deltaMs);
-
-    throttle = limitedThrottle_;
-}
-
-void ForwardMode::applySteeringSlew(
-    int32_t &steering,
-    uint32_t deltaMs)
-{
-
-    limitedSteering_ = applySlew(
-        limitedSteering_,
-        steering,
-        STEERING_SLEW_RATE,
-        deltaMs);
-
-    steering = limitedSteering_;
-}
-
-void ForwardMode::applySpeedDependentSteering(
-    int32_t throttle,
-    int32_t &steering)
-{
-    const int64_t throttle64 = throttle;
-    const int64_t steering64 = steering;
-    const int64_t maxReduction64 = MAX_STEERING_REDUCTION;
-
-    const int32_t reduction =
-        maxReduction64 * std::abs(throttle64) / 1000;
-
-    steering =
-        steering64 * (1000 - reduction) / 1000;
-}
-
-
-void ForwardMode::applyDifferentialMix(
-    int32_t throttle,
-    int32_t steering,
-    int32_t &left,
-    int32_t &right)
-{
-    left = throttle + steering;
-    right = throttle - steering;
-}
-
-
-void ForwardMode::applyMixNormalization(
-    int32_t &left,
-    int32_t &right)
-{
-    const int32_t largest =
-        std::max(std::abs(left), std::abs(right));
-
-    if (largest <= 1000)
-    {
-        return;
-    }
-
-    const int64_t left64 = left;
-    const int64_t right64 = right;
-
-    left = left64 * 1000 / largest;
-    right = right64 * 1000 / largest;
+    robot.hw.leftMotor->setSpeed(
+        static_cast<int16_t>(powers.left),
+        robot.state.currentMs);
+    robot.hw.rightMotor->setSpeed(
+        static_cast<int16_t>(powers.right),
+        robot.state.currentMs);
 }

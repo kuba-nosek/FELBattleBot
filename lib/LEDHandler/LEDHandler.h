@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <freertos/FreeRTOS.h>
 
 // Persistent indication states (linked to active robot drive modes)
 enum class LEDIndication : uint8_t {
@@ -7,7 +8,6 @@ enum class LEDIndication : uint8_t {
     Idle,
     Forward,
     Spin,
-    MeltySync,   // High-precision microsecond rotational sync
     Failsafe,
     LowBattery,
     HardwareError
@@ -34,11 +34,14 @@ public:
     // Play a priority animation (temporarily overrides base indication)
     void playAnimation(LEDAnimation mode);
     
-    // Setup high-precision parameters for Melty Brain visual tracking
-    void setMeltySync(uint32_t periodUs, uint32_t phaseOffsetUs, uint32_t flashDurationUs);
-    
-    // Returns true if MeltySync is active and not blocked by an animation
-    bool isMeltySyncActive() const;
+    // Schedule one flash relative to the current time.
+    void scheduleFlash(
+        uint32_t startTimeFromNowUs,
+        uint32_t flashDurationUs,
+        uint32_t minimumTimeBetweenFlashesUs);
+
+    // Cancel only the pending flash. A running flash is allowed to finish.
+    void cancelScheduledFlash();
     
     // Must be called cyclically in the dedicated LED thread
     void update();
@@ -60,8 +63,17 @@ private:
     bool _ledState;
     uint8_t _stepCounter;
 
-    // Melty Brain microsecond timing variables
-    uint32_t _meltyPeriodUs;
-    uint32_t _meltyPhaseOffsetUs;
-    uint32_t _meltyFlashDurationUs;
+    // One running flash and at most one future flash.
+    bool _flashRunning;
+    uint32_t _flashEndUs;
+
+    bool _flashPending;
+    uint32_t _pendingFlashStartUs;
+    uint32_t _pendingFlashDurationUs;
+    uint32_t _pendingMinimumGapUs;
+
+    bool _hasLastFlashEnd;
+    uint32_t _lastFlashEndUs;
+
+    portMUX_TYPE _flashStateLock = portMUX_INITIALIZER_UNLOCKED;
 };

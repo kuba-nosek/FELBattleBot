@@ -22,8 +22,11 @@ namespace RobotConfig {
     constexpr uint8_t PIN_CRSF_RX = 0; 
     constexpr uint8_t PIN_CRSF_TX = 1; 
     
-    constexpr uint8_t PIN_MOTOR_L = 2;  
-    constexpr uint8_t PIN_MOTOR_R = 3;  
+    constexpr uint8_t PIN_MOTOR_L = 3;
+    constexpr uint8_t PIN_MOTOR_R = 2;
+
+    constexpr bool MOTOR_LEFT_REVERSED = false;
+    constexpr bool MOTOR_RIGHT_REVERSED = false;
     
     constexpr uint8_t PIN_LED     = 9; 
 
@@ -64,6 +67,20 @@ namespace RobotConfig {
     // Normalized internal scale (-1000 to 1000)
     constexpr int32_t RC_OUTPUT_SCALE = 1000;
 
+    // ==========================================
+    // Forward mode
+    // ==========================================
+    constexpr int32_t FORWARD_MAX_MOVING_TURN_PERCENT = 40;
+    constexpr int32_t FORWARD_MAX_STANDING_TURN_POWER = 50;
+
+    static_assert(
+        FORWARD_MAX_MOVING_TURN_PERCENT >= 0 &&
+        FORWARD_MAX_MOVING_TURN_PERCENT <= 100,
+        "Forward moving turn percentage must be in the range 0..100");
+    static_assert(
+        FORWARD_MAX_STANDING_TURN_POWER >= 0 &&
+        FORWARD_MAX_STANDING_TURN_POWER <= RC_OUTPUT_SCALE,
+        "Forward standing turn power must be in the range 0..1000");
     // Generic thresholds used for mapped switches.
     constexpr uint16_t RC_SWITCH_LOW_THRESHOLD = 1300;
     constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;

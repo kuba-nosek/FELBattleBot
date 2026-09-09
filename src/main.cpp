@@ -19,8 +19,8 @@
 using namespace RobotConfig;
 
 // --- Global hardware instances ---
-Motor motorLeft(PIN_MOTOR_L, RMT_CHANNEL_0, false);
-Motor motorRight(PIN_MOTOR_R, RMT_CHANNEL_1, true);
+Motor motorLeft(PIN_MOTOR_L, RMT_CHANNEL_0, MOTOR_LEFT_REVERSED);
+Motor motorRight(PIN_MOTOR_R, RMT_CHANNEL_1, MOTOR_RIGHT_REVERSED);
 
 IMU imu1(PIN_SPI_CS1, IMU1_OFFSET_X_G, IMU1_OFFSET_Y_G, IMU1_OFFSET_Z_G);
 IMU imu2(PIN_SPI_CS2, IMU2_OFFSET_X_G, IMU2_OFFSET_Y_G, IMU2_OFFSET_Z_G);
@@ -42,7 +42,7 @@ void onFailsafe() {
   robot.hw.led->setIndication(LEDIndication::Failsafe);
 }
 
-void sendSerialTelemetry(ReceiverInput input)
+void sendSerialTelemetry(const ReceiverInput& input)
 {
     static uint32_t lastPrintMs = 0;
 
@@ -52,18 +52,23 @@ void sendSerialTelemetry(ReceiverInput input)
     }
 
     // Serial.printf(
-    //     "IMU1[g]  X:%+8.3f  Y:%+8.3f  Z:%+8.3f | "
-    //     "IMU2[g]  X:%+8.3f  Y:%+8.3f  Z:%+8.3f\n",
-    //     robot.state.imu1.xG,
-    //     robot.state.imu1.yG,
-    //     robot.state.imu1.zG,
-    //     robot.state.imu2.xG,
-    //     robot.state.imu2.yG,
-    //     robot.state.imu2.zG);
+    //     "IMU1[m/s^2]  X:%+8.3f  Y:%+8.3f  Z:%+8.3f | "
+    //     "IMU2[m/s^2]  X:%+8.3f  Y:%+8.3f  Z:%+8.3f\n",
+    //     robot.state.imu1.xMps2,
+    //     robot.state.imu1.yMps2,
+    //     robot.state.imu1.zMps2,
+    //     robot.state.imu2.xMps2,
+    //     robot.state.imu2.yMps2,
+    //     robot.state.imu2.zMps2);
 
-    Serial.printf(
-        "stick:%8.3d\n",
-        input.leftStickVertical);
+    // Serial.print("leftVertical: ");
+    // Serial.print(input.leftStickVertical);
+    // Serial.print("  leftHorizontal: ");
+    // Serial.print(input.leftStickHorizontal);
+    // Serial.print("  rightVertical: ");
+    // Serial.print(input.rightStickVertical);
+    // Serial.print("  rightHorizontal: ");
+    // Serial.println(input.rightStickHorizontal);
 
     lastPrintMs = robot.state.currentMs;
 }
@@ -75,13 +80,13 @@ void sendWiFiTelemetry() {
         if (robot.state.currentMs - lastUdpMs > 50) {
             char payload[128];
             snprintf(payload, sizeof(payload), 
-                "IMU1[g]: X=%.3f Y=%.3f Z=%.3f | IMU2[g]: X=%.3f Y=%.3f Z=%.3f",
-                robot.state.imu1.xG,
-                robot.state.imu1.yG,
-                robot.state.imu1.zG,
-                robot.state.imu2.xG,
-                robot.state.imu2.yG,
-                robot.state.imu2.zG);
+                "IMU1[m/s^2]: X=%.3f Y=%.3f Z=%.3f | IMU2[m/s^2]: X=%.3f Y=%.3f Z=%.3f",
+                robot.state.imu1.xMps2,
+                robot.state.imu1.yMps2,
+                robot.state.imu1.zMps2,
+                robot.state.imu2.xMps2,
+                robot.state.imu2.yMps2,
+                robot.state.imu2.zMps2);
             
             udp.beginPacket(UDP_BROADCAST_IP, UDP_PORT);
             udp.print(payload);
@@ -187,7 +192,7 @@ void mainThread(void *pvParameters) {
         if (imu1.isAvailable()) imu1.readData(robot.state.imu1);
         if (imu2.isAvailable()) imu2.readData(robot.state.imu2);
 
-        sendSerialTelemetry(input);
+        // sendSerialTelemetry(input);
 
         #if ENABLE_DEBUG_AP 
             sendWiFiTelemetry();
@@ -219,12 +224,6 @@ void ReceiverThread(void *pvParameters) {
 void LEDThread(void *pvParameters) {
     while (true) {
         ledHandler.update();
-
-        // precision for meltySync mode
-        if (ledHandler.isMeltySyncActive()) {
-            vTaskDelay(1); 
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(20));
-        }
+        vTaskDelay(1);
     }
 }

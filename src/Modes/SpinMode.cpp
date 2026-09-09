@@ -5,20 +5,27 @@
 
 namespace
 {
+    struct MotorPowers
+    {
+        int32_t left;
+        int32_t right;
+    };
+
     // Hardware/timing placeholders to be calibrated on the finished robot.
     constexpr float MIN_SENSOR_RADIUS_METERS = 0.015f;
     constexpr float MAX_SENSOR_RADIUS_METERS = 0.05f;
-    constexpr uint32_t LED_PHASE_OFFSET_US = 0;
-    constexpr uint32_t LED_FLASH_DURATION_US = 2000;
+    constexpr uint32_t LED_FLASH_DURATION_US = 500;
+    constexpr uint32_t LED_MINIMUM_TIME_BETWEEN_FLASHES_US = 1000;
 
-    constexpr float STANDARD_GRAVITY_MPS2 = 9.80665f;
     constexpr float TWO_PI_RADIANS = 6.28318530718f;
+    constexpr float PI_RADIANS = TWO_PI_RADIANS / 2.0f;
+    constexpr float MAX_HEADING_CHANGE_SPEED_RAD_PER_SEC = TWO_PI_RADIANS;
     constexpr float MICROSECONDS_TO_SECONDS = 0.000001f;
     constexpr float SECONDS_TO_MICROSECONDS = 1000000.0f;
 
     static_assert(
         MIN_SENSOR_RADIUS_METERS > 0.0f &&
-        MAX_SENSOR_RADIUS_METERS >= MIN_SENSOR_RADIUS_METERS,
+            MAX_SENSOR_RADIUS_METERS >= MIN_SENSOR_RADIUS_METERS,
         "Sensor radius range must be positive");
 
     float wrapRadians(float angleRadians)
@@ -26,156 +33,172 @@ namespace
         const float wrapped = std::fmod(angleRadians, TWO_PI_RADIANS);
         return wrapped < 0.0f ? wrapped + TWO_PI_RADIANS : wrapped;
     }
+
+    float calculateSensorRadiusMeters(int32_t potentiometer)
+    {
+        const float potentiometerPosition =
+            (static_cast<float>(potentiometer) + RobotConfig::RC_OUTPUT_SCALE) /
+            (2.0f * RobotConfig::RC_OUTPUT_SCALE);
+
+        return MIN_SENSOR_RADIUS_METERS + potentiometerPosition *
+                                              (MAX_SENSOR_RADIUS_METERS - MIN_SENSOR_RADIUS_METERS);
+    }
+
+    float calculateConstantHeadingOffsetRadians(int32_t potentiometer)
+    {
+        return static_cast<float>(potentiometer) /
+               RobotConfig::RC_OUTPUT_SCALE * PI_RADIANS;
+    }
+
+    float calculateAngularSpeed(
+        float centripetalAccelerationMps2,
+        float sensorRadiusMeters)
+    {
+        // Centripetal acceleration: a = omega^2 * radius.
+        return std::sqrt(centripetalAccelerationMps2 / sensorRadiusMeters);
+    }
+
+    float calculateTimeUntilHeadingOffsetUs(
+        float headingRadians,
+        float signedAngularSpeedRadPerSec)
+    {
+        const float radiansUntilHeadingOffset = signedAngularSpeedRadPerSec > 0.0f
+                                                    ? (headingRadians > 0.0f
+                                                           ? TWO_PI_RADIANS - headingRadians
+                                                           : 0.0f)
+                                                    : headingRadians;
+
+        return (radiansUntilHeadingOffset / std::abs(signedAngularSpeedRadPerSec)) *
+               SECONDS_TO_MICROSECONDS;
+    }
+
+    MotorPowers calculateMotorPowers(
+        int32_t power,
+        int32_t amplitude,
+        float headingRadians)
+    {
+        const float modulation = std::sin(headingRadians);
+        const int32_t wave = static_cast<int32_t>(
+            std::lround(static_cast<float>(amplitude) * modulation));
+
+        return {
+            power + wave,
+            -power + wave};
+    }
 }
 
 void SpinMode::init(RobotCore& robot)
 {
-    centripetalAccelerationMps2_ = 0.0f;
-    angularSpeedRadPerSec_ = 0.0f;
     headingRadians_ = 0.0f;
+    constantHeadingOffsetRadians_ = 0.0f;
+    variableHeadingOffsetRadians_ = 0.0f;
     lastUpdateUs_ = micros();
     spinDirection_ = 1;
 
     robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
-    robot.hw.led->setMeltySync(0, 0, LED_FLASH_DURATION_US);
+    robot.hw.led->setIndication(LEDIndication::Spin);
+    robot.hw.led->cancelScheduledFlash();
+}
+
+void SpinMode::updateHeading(
+    float deltaSeconds,
+    float angularSpeedRadPerSec)
+{
+
+
+    headingRadians_ = wrapRadians(
+        headingRadians_ + spinDirection_ * angularSpeedRadPerSec);
 }
 
 void SpinMode::execute(RobotCore& robot, const ReceiverInput& input)
 {
     const uint32_t currentUs = micros();
-    const int32_t power = calculatePower(input);
-    const int32_t amplitude = calculateAmplitude(input);
-    const float offsetRadians = calculateOffsetRadians(robot);
-    const float sensorRadiusMeters = calculateSensorRadiusMeters(input);
-
-    updateCentripetalAcceleration(robot.state.imu1);
-    calculateAngularSpeed(sensorRadiusMeters);
-    updateSpinDirection(power);
-    updateHeading(currentUs);
-    commandSpinThrottle(robot, power, amplitude, offsetRadians);
-    updateLightIndication(robot, currentUs);
-}
-
-int32_t SpinMode::calculatePower(const ReceiverInput& input) const
-{
-    return input.leftStickVertical;
-}
-
-int32_t SpinMode::calculateAmplitude(const ReceiverInput& input) const
-{
-    return input.leftStickHorizontal;
-}
-
-float SpinMode::calculateOffsetRadians(const RobotCore&) const
-{
-    return 0.0f;
-}
-
-float SpinMode::calculateSensorRadiusMeters(const ReceiverInput& input) const
-{
-    const float potentiometerPosition =
-        (static_cast<float>(input.leftPot) + RobotConfig::RC_OUTPUT_SCALE) /
-        (2.0f * RobotConfig::RC_OUTPUT_SCALE);
-
-    return MIN_SENSOR_RADIUS_METERS + potentiometerPosition *
-        (MAX_SENSOR_RADIUS_METERS - MIN_SENSOR_RADIUS_METERS);
-}
-
-void SpinMode::updateCentripetalAcceleration(const IMUData& imu)
-{
-    // Use the XY-plane magnitude so small mounting-angle errors do not affect
-    // the radial acceleration estimate.
-    const float radialAccelerationG = std::hypot(imu.xG, imu.yG);
-    centripetalAccelerationMps2_ =
-        radialAccelerationG * STANDARD_GRAVITY_MPS2;
-}
-
-void SpinMode::calculateAngularSpeed(float sensorRadiusMeters)
-{
-    if (centripetalAccelerationMps2_ <= 0.0f)
-    {
-        angularSpeedRadPerSec_ = 0.0f;
-        return;
-    }
-
-    // Centripetal acceleration: a = omega^2 * radius.
-    angularSpeedRadPerSec_ = std::sqrt(
-        centripetalAccelerationMps2_ / sensorRadiusMeters);
-}
-
-void SpinMode::updateSpinDirection(int32_t power)
-{
-    if (power > 0)
-    {
-        spinDirection_ = 1;
-    }
-    else if (power < 0)
-    {
-        spinDirection_ = -1;
-    }
-}
-
-void SpinMode::updateHeading(uint32_t currentUs)
-{
     const uint32_t deltaUs = currentUs - lastUpdateUs_;
     lastUpdateUs_ = currentUs;
 
     const float deltaSeconds =
         static_cast<float>(deltaUs) * MICROSECONDS_TO_SECONDS;
-    const float signedAngularSpeed =
-        spinDirection_ * angularSpeedRadPerSec_;
+    const int32_t power = input.leftStickVertical;
+    const int32_t amplitude = input.rightStickVertical;
 
-    headingRadians_ = wrapRadians(
-        headingRadians_ + signedAngularSpeed * deltaSeconds);
-}
+    const float sensorRadiusMeters =
+        calculateSensorRadiusMeters(input.leftPot);
 
-void SpinMode::commandSpinThrottle(
-    RobotCore& robot,
-    int32_t power,
-    int32_t amplitude,
-    float offsetRadians)
-{
-    const float modulation = std::sin(headingRadians_ + offsetRadians);
-    const int32_t wave = static_cast<int32_t>(
-        std::lround(static_cast<float>(amplitude) * modulation));
+    // Use the XY-plane magnitude so small mounting-angle errors do not affect
+    // the radial acceleration estimate.
+    const float centripetalAccelerationMps2 = std::hypot(
+        robot.state.imu1.xMps2,
+        robot.state.imu1.yMps2);
 
-    const int32_t left = power + wave;
-    const int32_t right = -power + wave;
+    const float angularSpeedRadPerSec = calculateAngularSpeed(
+        centripetalAccelerationMps2,
+        sensorRadiusMeters);
 
-    robot.hw.leftMotor->setSpeed(static_cast<int16_t>(left), robot.state.currentMs);
-    robot.hw.rightMotor->setSpeed(static_cast<int16_t>(right), robot.state.currentMs);
-}
+    if (power != 0)
+        spinDirection_ = power > 0 ? 1 : -1;
 
-void SpinMode::updateLightIndication(RobotCore& robot, uint32_t currentUs)
-{
-    if (angularSpeedRadPerSec_ <= 0.0f)
+    if (std::isfinite(angularSpeedRadPerSec))
+        updateHeading(deltaSeconds, angularSpeedRadPerSec);
+
+    const float constantHeadingOffsetRadians =
+        calculateConstantHeadingOffsetRadians(input.rightPot);
+    const bool headingOffsetChanged =
+        constantHeadingOffsetRadians != constantHeadingOffsetRadians_ ||
+        input.rightStickHorizontal != 0;
+
+    constantHeadingOffsetRadians_ = constantHeadingOffsetRadians;
+    const float headingChangeSpeedRadPerSec =
+        static_cast<float>(input.rightStickHorizontal) /
+        RobotConfig::RC_OUTPUT_SCALE *
+        MAX_HEADING_CHANGE_SPEED_RAD_PER_SEC;
+    variableHeadingOffsetRadians_ = wrapRadians(
+        variableHeadingOffsetRadians_ +
+        headingChangeSpeedRadPerSec * deltaSeconds);
+
+    const float correctedHeadingRadians = wrapRadians(
+        headingRadians_ +
+        constantHeadingOffsetRadians_ +
+        variableHeadingOffsetRadians_);
+    const float correctedAngularSpeedRadPerSec =
+        spinDirection_ * angularSpeedRadPerSec +
+        headingChangeSpeedRadPerSec;
+
+    const MotorPowers motorPowers = calculateMotorPowers(
+        power,
+        amplitude,
+        correctedHeadingRadians);
+
+    robot.hw.leftMotor->setSpeed(
+        static_cast<int16_t>(motorPowers.left),
+        robot.state.currentMs);
+    robot.hw.rightMotor->setSpeed(
+        static_cast<int16_t>(motorPowers.right),
+        robot.state.currentMs);
+
+    if (angularSpeedRadPerSec <= 0.0f ||
+        !std::isfinite(angularSpeedRadPerSec))
     {
-        robot.hw.led->setMeltySync(0, 0, LED_FLASH_DURATION_US);
+        robot.hw.led->cancelScheduledFlash();
         return;
     }
 
-    const float periodUsFloat =
-        (TWO_PI_RADIANS / angularSpeedRadPerSec_) *
-        SECONDS_TO_MICROSECONDS;
+    const float timeUntilHeadingOffsetUs = calculateTimeUntilHeadingOffsetUs(
+        correctedHeadingRadians,
+        correctedAngularSpeedRadPerSec);
 
-    if (periodUsFloat <= 0.0f || periodUsFloat > UINT32_MAX)
+    if (!std::isfinite(timeUntilHeadingOffsetUs) ||
+        timeUntilHeadingOffsetUs < 0.0f ||
+        timeUntilHeadingOffsetUs > INT32_MAX)
     {
-        robot.hw.led->setMeltySync(0, 0, LED_FLASH_DURATION_US);
+        robot.hw.led->cancelScheduledFlash();
         return;
     }
 
-    const float phaseSinceZeroRadians = spinDirection_ > 0
-        ? headingRadians_
-        : wrapRadians(-headingRadians_);
-    const float elapsedSinceZeroUs =
-        (phaseSinceZeroRadians / angularSpeedRadPerSec_) *
-        SECONDS_TO_MICROSECONDS;
+    if (headingOffsetChanged)
+        robot.hw.led->cancelScheduledFlash();
 
-    const uint32_t zeroHeadingUs =
-        currentUs - static_cast<uint32_t>(elapsedSinceZeroUs + 0.5f);
-
-    robot.hw.led->setMeltySync(
-        static_cast<uint32_t>(periodUsFloat + 0.5f),
-        zeroHeadingUs + LED_PHASE_OFFSET_US,
-        LED_FLASH_DURATION_US);
+    robot.hw.led->scheduleFlash(
+        static_cast<uint32_t>(timeUntilHeadingOffsetUs),
+        LED_FLASH_DURATION_US,
+        LED_MINIMUM_TIME_BETWEEN_FLASHES_US);
 }

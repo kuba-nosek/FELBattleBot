@@ -39,7 +39,7 @@ Handles bidirectional motor control using the digital DShot300 protocol via the 
 ### 2. `IMU` (H3LIS331DL Accelerometer)
 Manages high-g accelerometer data acquisition over the SPI bus. Each instance stores its own calibration offsets.
 *   **`init()`**: Verifies the sensor ID and writes initial configurations to the control registers.
-*   **`readData(IMUData& dataOut)`**: Reads all 6 coordinate registers in a single SPI transaction, applies calibration, and outputs floating-point acceleration in g.
+*   **`readData(IMUData& dataOut)`**: Reads all 6 coordinate registers in a single SPI transaction, applies calibration, and outputs floating-point acceleration in m/s².
 *   **`writeConfig(reg, value)`**: Allows dynamic modification of sensor parameters during runtime.
 
 ### 3. `Receiver` (CRSF Protocol)
@@ -49,12 +49,12 @@ An isolated driver for parsing the ExpressLRS / Crossfire serial protocol via UA
 *   **`sendTelemetry(text, currentMs)`**: Packages and transmits standard CRSF telemetry frames back to the radio transmitter.
 *   **`onDisconnect(callback)`**: Registers a safety callback executed immediately upon signal loss.
 
-### 4. `LEDHandler` (Status and Sync UI)
+### 4. `LEDHandler` (Status and Flash UI)
 Manages the visual feedback of the robot using a priority-based indication system.
 *   **`setIndication(LEDIndication)`**: Sets the persistent status of the robot (e.g., `Idle`, `Forward`, `HardwareError`).
 *   **`playAnimation(LEDAnimation)`**: Triggers a high-priority visual sequence (e.g., `ModeChanged` or `InitializationFail`) that temporarily overrides the base indication.
-*   **`setMeltySync(periodUs, phaseOffsetUs, flashDurationUs)`**: Establishes microsecond-level LED timing required for Melty Brain rotational tracking, enabling direct IMU-to-LED synchronization.
-*   **`isMeltySyncActive()`**: Allows the thread scheduler to adjust loop timing dynamically for maximum precision.
+*   **`scheduleFlash(startTimeFromNowUs, flashDurationUs, minimumTimeBetweenFlashesUs)`**: Schedules one future flash while enforcing a minimum dark interval between flashes.
+*   **`cancelScheduledFlash()`**: Cancels a pending flash without shortening a flash that is already running.
 
 ### Receiver Input Mapping
 
@@ -77,6 +77,14 @@ values are selected by the midpoint between six equally spaced RC positions.
 The processed `ReceiverInput` is passed explicitly to each drive mode's `execute`
 method. Forward mode converts its signed potentiometer inputs to `0..1000` expo
 amounts locally.
+
+In Spin mode, the left vertical stick controls spin power and the left
+potentiometer selects the IMU radius. The right vertical stick controls
+translation amplitude. The right potentiometer sets a constant heading offset,
+mapping its full range to `-π..+π`. Holding the right horizontal stick continuously
+changes a separate variable heading offset at up to one revolution per second;
+that offset remains fixed when the stick is released. The combined offset drives
+both motor modulation and the directional LED flash.
 
 ---
 
@@ -107,11 +115,11 @@ These states represent the current operating mode or health of the robot.
 | State | Visual Pattern | Description |
 | :--- | :--- | :--- |
 | **Idle** | Heartbeat | A repeating 2000 ms cycle featuring a double-blink "heartbeat" effect. |
-| **Forward / Spin** | Solid Light | Continuous solid light indicating an active drive/combat mode. |
+| **Forward** | Solid Light | Continuous solid light indicating forward drive mode. |
+| **Spin** | Directional Flash | Flashes when the estimated heading reaches zero. |
 | **Failsafe** | Slow Blink (2 Hz) | 250 ms ON, 250 ms OFF loop warning of RC link loss. |
 | **Low Battery** | Short Pulse | A power-saving warning flash (100 ms ON, 900 ms OFF). |
 | **Hardware Error** | Rapid Strobe (15 Hz) | Fast terminal error warning (30 ms ON, 30 ms OFF). |
-| **Melty Sync** | Rotational Strobe | High-precision microsecond directional strobe synced to IMU data. |
 | **Off** | Dark | LED is completely deactivated. |
 
 ### Priority Animations (Events)
@@ -140,10 +148,10 @@ The firmware distributes the workload across three independent tasks scheduled b
     *   **Frequency:** 500 Hz (2 ms period)
     *   **Role:** Continuously polls the UART buffer. Isolating this process prevents serial buffer overflows at 420k baud and ensures the main control loop is never blocked by communication processing.
 
-3. **`LED_Control` (UI & Sync Thread)**
+3. **`LED_Control` (UI Thread)**
     *   **Priority:** Low (1)
-    *   **Frequency:** Dynamic (50 Hz standard; 1-tick delay for Melty mode)
-    *   **Role:** Evaluates animations and blinks the LED. During standard operation, it sleeps for 20 ms. When `isMeltySyncActive()` returns true, it ramps up the execution speed to allow microsecond-accurate strobe flashes based on the IMU phase offset parameters.
+    *   **Frequency:** One scheduler tick between updates.
+    *   **Role:** Evaluates animations, status indications, and one-shot directional flashes requested by Spin mode.
 
 ---
 

@@ -1,12 +1,28 @@
 #include "LEDHandler.h"
 #include <Arduino.h>
 
+namespace
+{
+    bool hasReached(uint32_t currentUs, uint32_t deadlineUs)
+    {
+        return static_cast<int32_t>(currentUs - deadlineUs) >= 0;
+    }
+
+    bool isEarlier(uint32_t firstUs, uint32_t secondUs)
+    {
+        return static_cast<int32_t>(firstUs - secondUs) < 0;
+    }
+}
+
 LEDHandler::LEDHandler(uint8_t ledPin) 
     : _ledPin(ledPin), _currentIndication(LEDIndication::Off), 
       _currentAnimation(LEDAnimation::None), _animationActive(false),
       _animationStartMs(0), _animationDurationMs(0), _lastToggleMs(0), 
       _ledState(false), _stepCounter(0),
-      _meltyPeriodUs(0), _meltyPhaseOffsetUs(0), _meltyFlashDurationUs(0) {
+      _flashRunning(false), _flashEndUs(0),
+      _flashPending(false), _pendingFlashStartUs(0),
+      _pendingFlashDurationUs(0), _pendingMinimumGapUs(0),
+      _hasLastFlashEnd(false), _lastFlashEndUs(0) {
 }
 
 void LEDHandler::init() {
@@ -16,7 +32,14 @@ void LEDHandler::init() {
 
 void LEDHandler::setIndication(LEDIndication mode) {
     if (_currentIndication == mode) return;
+
     _currentIndication = mode;
+
+    portENTER_CRITICAL(&_flashStateLock);
+    _flashRunning = false;
+    _flashPending = false;
+    _hasLastFlashEnd = false;
+    portEXIT_CRITICAL(&_flashStateLock);
 }
 
 void LEDHandler::playAnimation(LEDAnimation mode) {
@@ -43,20 +66,89 @@ void LEDHandler::playAnimation(LEDAnimation mode) {
     }
 }
 
-void LEDHandler::setMeltySync(uint32_t periodUs, uint32_t phaseOffsetUs, uint32_t flashDurationUs) {
-    _meltyPeriodUs = periodUs;
-    _meltyPhaseOffsetUs = phaseOffsetUs;
-    _meltyFlashDurationUs = flashDurationUs;
-    setIndication(LEDIndication::MeltySync);
+void LEDHandler::scheduleFlash(
+    uint32_t startTimeFromNowUs,
+    uint32_t flashDurationUs,
+    uint32_t minimumTimeBetweenFlashesUs) {
+    if (flashDurationUs == 0 ||
+        startTimeFromNowUs > INT32_MAX ||
+        flashDurationUs > INT32_MAX ||
+        minimumTimeBetweenFlashesUs >
+            static_cast<uint32_t>(INT32_MAX) - flashDurationUs) return;
+
+    const uint32_t currentUs = micros();
+    const uint32_t flashStartUs = currentUs + startTimeFromNowUs;
+    bool shouldSchedule = true;
+
+    portENTER_CRITICAL(&_flashStateLock);
+    if (_flashRunning) {
+        const uint32_t earliestStartUs =
+            _flashEndUs + minimumTimeBetweenFlashesUs;
+
+        shouldSchedule = !isEarlier(flashStartUs, earliestStartUs);
+    } else if (_hasLastFlashEnd) {
+        const uint32_t earliestStartUs =
+            _lastFlashEndUs + minimumTimeBetweenFlashesUs;
+
+        if (!hasReached(currentUs, earliestStartUs) &&
+            isEarlier(flashStartUs, earliestStartUs)) {
+            shouldSchedule = false;
+        }
+    }
+
+    if (shouldSchedule && _flashPending &&
+        !isEarlier(flashStartUs, _pendingFlashStartUs)) {
+        shouldSchedule = false;
+    }
+
+    if (shouldSchedule) {
+        _pendingFlashStartUs = flashStartUs;
+        _pendingFlashDurationUs = flashDurationUs;
+        _pendingMinimumGapUs = minimumTimeBetweenFlashesUs;
+        _flashPending = true;
+    }
+    portEXIT_CRITICAL(&_flashStateLock);
 }
 
-bool LEDHandler::isMeltySyncActive() const {
-    return (_currentIndication == LEDIndication::MeltySync && !_animationActive);
+void LEDHandler::cancelScheduledFlash() {
+    portENTER_CRITICAL(&_flashStateLock);
+    _flashPending = false;
+    portEXIT_CRITICAL(&_flashStateLock);
 }
 
 void LEDHandler::update() {
     uint32_t currentMs = millis();
+    uint32_t currentUs = micros();
     bool shouldLight = false;
+
+    portENTER_CRITICAL(&_flashStateLock);
+    if (_flashRunning && hasReached(currentUs, _flashEndUs)) {
+        _flashRunning = false;
+        _hasLastFlashEnd = true;
+        _lastFlashEndUs = currentUs;
+    }
+
+    if (!_flashRunning && _flashPending) {
+        uint32_t earliestStartUs = _pendingFlashStartUs;
+
+        if (_hasLastFlashEnd) {
+            const uint32_t endOfMinimumGapUs =
+                _lastFlashEndUs + _pendingMinimumGapUs;
+
+            if (!hasReached(currentUs, endOfMinimumGapUs) &&
+                isEarlier(earliestStartUs, endOfMinimumGapUs)) {
+                earliestStartUs = endOfMinimumGapUs;
+            }
+        }
+
+        if (hasReached(currentUs, earliestStartUs)) {
+            _flashPending = false;
+            _flashRunning = true;
+            _flashEndUs = currentUs + _pendingFlashDurationUs;
+        }
+    }
+    const bool flashRunning = _flashRunning;
+    portEXIT_CRITICAL(&_flashStateLock);
 
     if (_animationActive) {
         if (currentMs - _animationStartMs >= _animationDurationMs) {
@@ -109,9 +201,12 @@ void LEDHandler::update() {
             }
 
             case LEDIndication::Forward:
-            case LEDIndication::Spin:
                 // solid light
                 shouldLight = true;
+                break;
+
+            case LEDIndication::Spin:
+                shouldLight = flashRunning;
                 break;
 
             case LEDIndication::Failsafe:
@@ -127,15 +222,6 @@ void LEDHandler::update() {
             case LEDIndication::LowBattery:
                 // 100 ms on 900 ms off
                 shouldLight = (currentMs % 1000) < 100;
-                break;
-
-            case LEDIndication::MeltySync:
-                // MeltySpin indication
-                if (_meltyPeriodUs > 0) {
-                    uint32_t currentUs = micros(); 
-                    uint32_t positionInRotation = (currentUs - _meltyPhaseOffsetUs) % _meltyPeriodUs;
-                    shouldLight = (positionInRotation < _meltyFlashDurationUs);
-                }
                 break;
 
             default:

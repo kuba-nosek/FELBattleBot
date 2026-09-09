@@ -12,6 +12,7 @@ namespace {
     constexpr uint8_t CTRL_REG5    = 0x24;
     constexpr uint8_t OUT_X_L      = 0x28;
     constexpr uint8_t EXPECTED_ID  = 0x32;
+    constexpr float STANDARD_GRAVITY_MPS2 = 9.80665f;
 }
 
 IMU::IMU(
@@ -105,9 +106,12 @@ bool IMU::readData(IMUData& dataOut) {
     int16_t y_12bit = (int16_t)(data[2] | (data[3] << 8)) >> 4;
     int16_t z_12bit = (int16_t)(data[4] | (data[5] << 8)) >> 4;
 
-    dataOut.xG = (x_12bit * _sensitivityGPerLsb) - _offsetXG;
-    dataOut.yG = (y_12bit * _sensitivityGPerLsb) - _offsetYG;
-    dataOut.zG = (z_12bit * _sensitivityGPerLsb) - _offsetZG;
+    dataOut.xMps2 =
+        ((x_12bit * _sensitivityGPerLsb) - _offsetXG) * STANDARD_GRAVITY_MPS2;
+    dataOut.yMps2 =
+        ((y_12bit * _sensitivityGPerLsb) - _offsetYG) * STANDARD_GRAVITY_MPS2;
+    dataOut.zMps2 =
+        ((z_12bit * _sensitivityGPerLsb) - _offsetZG) * STANDARD_GRAVITY_MPS2;
 
     return true;
 }
