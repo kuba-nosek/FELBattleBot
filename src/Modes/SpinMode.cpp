@@ -137,6 +137,13 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input)
     if (power != 0)
         spinDirection_ = power > 0 ? 1 : -1;
 
+    robot.state.rpm = spinDirection_ * angularSpeedRadPerSec *
+        (60.0f / TWO_PI_RADIANS);
+        
+    robot.state.rpmValid = std::isfinite(robot.state.rpm);
+    if (!robot.state.rpmValid) {
+        robot.state.rpm = 0.0f;
+
     if (std::isfinite(angularSpeedRadPerSec))
         updateHeading(deltaSeconds, angularSpeedRadPerSec);
 

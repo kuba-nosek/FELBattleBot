@@ -8,11 +8,13 @@
 #include "ReceiverInput.h"
 
 struct RobotState {
-    uint32_t currentMs;
-    bool isConnected;
-    DriveModeType requestedMode;
-    IMUData imu1;
-    IMUData imu2;
+    uint32_t currentMs = 0;
+    bool isConnected = false;
+    DriveModeType requestedMode = DriveModeType::Idle;
+    IMUData imu1{};
+    IMUData imu2{};
+    float rpm = 0.0f;
+    bool rpmValid = false;
 };
 
 struct RobotHardware {
