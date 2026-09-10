@@ -3,11 +3,11 @@
 #include "IRobotMode.h"
 
 class SpinMode : public IRobotMode {
-public:
+  public:
     void init(RobotCore& robot) override;
     void execute(RobotCore& robot, const ReceiverInput& input) override;
 
-private:
+  private:
     float headingRadians_ = 0.0f;
     float constantHeadingOffsetRadians_ = 0.0f;
     float variableHeadingOffsetRadians_ = 0.0f;

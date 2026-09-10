@@ -2,21 +2,21 @@
 #include <SPI.h>
 
 // Custom libraries
-#include "config.h"
-#include "Motor.h"
+#include "BattlebotTelemetry.h"
 #include "IMU.h"
-#include "Receiver.h"
 #include "LEDHandler.h"
 #include "ModeHandler.h"
+#include "Motor.h"
+#include "Receiver.h"
 #include "SignalProcessing.h"
-#include "BattlebotTelemetry.h"
+#include "config.h"
 
 #include <cmath>
 
 #if ENABLE_DEBUG_AP
-    #include <WiFi.h>
-    #include <WiFiUdp.h>
-    WiFiUDP udp;
+#include <WiFi.h>
+#include <WiFiUdp.h>
+WiFiUDP udp;
 #endif
 
 using namespace RobotConfig;
@@ -36,90 +36,85 @@ RobotCore robot;
 
 namespace {
 
+constexpr float STANDARD_GRAVITY_MPS2 = 9.80665f;
+
+float convertMps2ToG(float accelerationMps2) {
+    return accelerationMps2 / STANDARD_GRAVITY_MPS2;
+}
+
+float calculateAccelerationMagnitudeG(const IMUData& data) {
+    const float xSquared = data.xMps2 * data.xMps2;
+    const float ySquared = data.yMps2 * data.yMps2;
+    const float zSquared = data.zMps2 * data.zMps2;
+    const float magnitudeMps2 = std::sqrt(xSquared + ySquared + zSquared);
+
+    return convertMps2ToG(magnitudeMps2);
+}
+
 struct AccelerationTelemetryAccumulator {
-    float sums[BattlebotTelemetry::SENSOR_COUNT]
-              [BattlebotTelemetry::AXIS_COUNT]{};
+    float accelerationSumsG[BattlebotTelemetry::SENSOR_COUNT][BattlebotTelemetry::AXIS_COUNT]{};
     float peakMagnitudeG[BattlebotTelemetry::SENSOR_COUNT]{};
     uint16_t sampleCount[BattlebotTelemetry::SENSOR_COUNT]{};
 
-    void reset()
-    {
-        for (size_t sensor = 0;
-             sensor < BattlebotTelemetry::SENSOR_COUNT;
-             ++sensor) {
+    void reset() {
+        for(size_t sensor = 0; sensor < BattlebotTelemetry::SENSOR_COUNT; ++sensor) {
             sampleCount[sensor] = 0;
             peakMagnitudeG[sensor] = 0.0f;
-            for (size_t axis = 0;
-                 axis < BattlebotTelemetry::AXIS_COUNT;
-                 ++axis) {
-                sums[sensor][axis] = 0.0f;
+            for(size_t axis = 0; axis < BattlebotTelemetry::AXIS_COUNT; ++axis) {
+                accelerationSumsG[sensor][axis] = 0.0f;
             }
         }
     }
 
-    void add(size_t sensor, const IMUData& data)
-    {
-        if (sensor >= BattlebotTelemetry::SENSOR_COUNT ||
-            sampleCount[sensor] == UINT16_MAX) {
+    void add(size_t sensor, const IMUData& data) {
+        if(sensor >= BattlebotTelemetry::SENSOR_COUNT || sampleCount[sensor] == UINT16_MAX) {
             return;
         }
 
-        sums[sensor][0] += data.xG;
-        sums[sensor][1] += data.yG;
-        sums[sensor][2] += data.zG;
+        accelerationSumsG[sensor][0] += convertMps2ToG(data.xMps2);
+        accelerationSumsG[sensor][1] += convertMps2ToG(data.yMps2);
+        accelerationSumsG[sensor][2] += convertMps2ToG(data.zMps2);
         ++sampleCount[sensor];
 
-        const float magnitude = std::sqrt(
-            data.xG * data.xG +
-            data.yG * data.yG +
-            data.zG * data.zG);
-        if (std::isfinite(magnitude) &&
-            magnitude > peakMagnitudeG[sensor]) {
-            peakMagnitudeG[sensor] = magnitude;
+        const float magnitudeG = calculateAccelerationMagnitudeG(data);
+        if(std::isfinite(magnitudeG) && magnitudeG > peakMagnitudeG[sensor]) {
+            peakMagnitudeG[sensor] = magnitudeG;
         }
     }
 };
 
 AccelerationTelemetryAccumulator telemetryAccumulator;
 
-void setAccelerationTelemetry(
-    BattlebotTelemetry::Snapshot& snapshot,
-    size_t sensor,
-    const bool enabled[BattlebotTelemetry::AXIS_COUNT],
-    const uint8_t validBits[BattlebotTelemetry::AXIS_COUNT])
-{
-    const uint16_t count = telemetryAccumulator.sampleCount[sensor];
-    if (count == 0) {
+void setAccelerationTelemetry(BattlebotTelemetry::Snapshot& snapshot, size_t sensor,
+                              const bool enabled[BattlebotTelemetry::AXIS_COUNT],
+                              const uint8_t validBits[BattlebotTelemetry::AXIS_COUNT]) {
+    const uint16_t samples = telemetryAccumulator.sampleCount[sensor];
+    if(samples == 0) {
         return;
     }
 
-    for (size_t axis = 0;
-         axis < BattlebotTelemetry::AXIS_COUNT;
-         ++axis) {
-        if (!enabled[axis]) {
+    for(size_t axis = 0; axis < BattlebotTelemetry::AXIS_COUNT; ++axis) {
+        if(!enabled[axis]) {
             continue;
         }
-        snapshot.accelerationCentiG[sensor][axis] =
-            BattlebotTelemetry::encodeAccelerationCentiG(
-                telemetryAccumulator.sums[sensor][axis] /
-                static_cast<float>(count));
+        const float accelerationSumG = telemetryAccumulator.accelerationSumsG[sensor][axis];
+        const float averageAccelerationG = accelerationSumG / static_cast<float>(samples);
+        snapshot.accelerationCentiG[sensor][axis] = BattlebotTelemetry::encodeAccelerationCentiG(averageAccelerationG);
         snapshot.validMask |= validBits[axis];
     }
 
     snapshot.peakMagnitudeCentiG[sensor] =
-        BattlebotTelemetry::encodePeakMagnitudeCentiG(
-            telemetryAccumulator.peakMagnitudeG[sensor]);
+        BattlebotTelemetry::encodePeakMagnitudeCentiG(telemetryAccumulator.peakMagnitudeG[sensor]);
 }
 
-void sendBattlebotTelemetry()
-{
-    if (!TELEMETRY_ENABLED || !robot.state.isConnected) {
+void sendBattlebotTelemetry() {
+    if(!TELEMETRY_ENABLED || !robot.state.isConnected) {
         telemetryAccumulator.reset();
         return;
     }
 
     BattlebotTelemetry::Snapshot snapshot{};
-    if (TELEMETRY_SEND_RPM && robot.state.rpmValid) {
+    if(TELEMETRY_SEND_RPM && robot.state.rpmValid) {
         snapshot.rpm = BattlebotTelemetry::encodeRpm(robot.state.rpm);
         snapshot.validMask |= BattlebotTelemetry::VALID_RPM;
     }
@@ -148,33 +143,28 @@ void sendBattlebotTelemetry()
     setAccelerationTelemetry(snapshot, 0, imu1Enabled, imu1ValidBits);
     setAccelerationTelemetry(snapshot, 1, imu2Enabled, imu2ValidBits);
 
-    if (receiver.sendBattlebotTelemetry(
-            snapshot,
-            robot.state.currentMs,
-            TELEMETRY_INTERVAL_MS)) {
+    if(receiver.sendBattlebotTelemetry(snapshot, robot.state.currentMs, TELEMETRY_INTERVAL_MS)) {
         telemetryAccumulator.reset();
     }
 }
 
-}  // namespace
+} // namespace
 
 // --- FreeRTOS task prototypes ---
-void mainThread(void *pvParameters);
-void ReceiverThread(void *pvParameters);
-void LEDThread(void *pvParameters);
+void mainThread(void* pvParameters);
+void ReceiverThread(void* pvParameters);
+void LEDThread(void* pvParameters);
 
 // --- Safety failsafe callback ---
 void onFailsafe() {
-  robot.state.requestedMode = DriveModeType::Idle;
-  robot.hw.led->setIndication(LEDIndication::Failsafe);
+    robot.state.requestedMode = DriveModeType::Idle;
+    robot.hw.led->setIndication(LEDIndication::Failsafe);
 }
 
-void sendSerialTelemetry(const ReceiverInput& input)
-{
+void sendSerialTelemetry(const ReceiverInput& input) {
     static uint32_t lastPrintMs = 0;
 
-    if (robot.state.currentMs - lastPrintMs < 100)
-    {
+    if(robot.state.currentMs - lastPrintMs < 100) {
         return;
     }
 
@@ -200,40 +190,35 @@ void sendSerialTelemetry(const ReceiverInput& input)
     lastPrintMs = robot.state.currentMs;
 }
 
-#if ENABLE_DEBUG_AP 
+#if ENABLE_DEBUG_AP
 void sendWiFiTelemetry() {
 
-        static uint32_t lastUdpMs = 0;
-        if (robot.state.currentMs - lastUdpMs > 50) {
-            char payload[128];
-            snprintf(payload, sizeof(payload), 
-                "IMU1[m/s^2]: X=%.3f Y=%.3f Z=%.3f | IMU2[m/s^2]: X=%.3f Y=%.3f Z=%.3f",
-                robot.state.imu1.xMps2,
-                robot.state.imu1.yMps2,
-                robot.state.imu1.zMps2,
-                robot.state.imu2.xMps2,
-                robot.state.imu2.yMps2,
-                robot.state.imu2.zMps2);
-            
-            udp.beginPacket(UDP_BROADCAST_IP, UDP_PORT);
-            udp.print(payload);
-            udp.endPacket();
-            
-            lastUdpMs = robot.state.currentMs;
-        }
+    static uint32_t lastUdpMs = 0;
+    if(robot.state.currentMs - lastUdpMs > 50) {
+        char payload[128];
+        snprintf(payload, sizeof(payload), "IMU1[m/s^2]: X=%.3f Y=%.3f Z=%.3f | IMU2[m/s^2]: X=%.3f Y=%.3f Z=%.3f",
+                 robot.state.imu1.xMps2, robot.state.imu1.yMps2, robot.state.imu1.zMps2, robot.state.imu2.xMps2,
+                 robot.state.imu2.yMps2, robot.state.imu2.zMps2);
+
+        udp.beginPacket(UDP_BROADCAST_IP, UDP_PORT);
+        udp.print(payload);
+        udp.endPacket();
+
+        lastUdpMs = robot.state.currentMs;
     }
+}
 #endif
 
 void setup() {
     Serial.begin(115200);
     delay(2000);
 
-    #if ENABLE_DEBUG_AP
-        Serial.println("Startuji Wi-Fi AP...");
-        WiFi.softAP(AP_SSID, AP_PASS);
-        Serial.print("AP IP adresa: ");
-        Serial.println(WiFi.softAPIP());
-    #endif
+#if ENABLE_DEBUG_AP
+    Serial.println("Startuji Wi-Fi AP...");
+    WiFi.softAP(AP_SSID, AP_PASS);
+    Serial.print("AP IP adresa: ");
+    Serial.println(WiFi.softAPIP());
+#endif
 
     // Initialize SPI for IMUs
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
@@ -254,16 +239,16 @@ void setup() {
     // Verify IMU sensors
     bool imu1Ok = imu1.init();
     bool imu2Ok = imu2.init();
-    
+
     hardwareOk &= (imu1Ok && imu2Ok);
 
-    if (!hardwareOk) {
+    if(!hardwareOk) {
 
         ledHandler.setIndication(LEDIndication::HardwareError);
-        
-        while (true) {
+
+        while(true) {
             ledHandler.update();
-            delay(10); 
+            delay(10);
         }
     }
 
@@ -285,7 +270,7 @@ void loop() {
 // TASK IMPLEMENTATIONS
 // ====================================================================
 
-void mainThread(void *pvParameters) {
+void mainThread(void* pvParameters) {
     robot.hw.leftMotor = &motorLeft;
     robot.hw.rightMotor = &motorRight;
     robot.hw.led = &ledHandler;
@@ -297,7 +282,7 @@ void mainThread(void *pvParameters) {
     // light indication sync
     modeHandler.update(robot);
 
-    while (true) {
+    while(true) {
         // NOTE: why?
         robot.state.currentMs = millis();
 
@@ -307,27 +292,24 @@ void mainThread(void *pvParameters) {
         // while the receiver task publishes the next CRSF frame.
         const ReceiverChannels channels = receiver.getChannelsSnapshot();
 
-        const ReceiverInput input =
-            SignalProcessing::processReceiverInput(channels);
+        const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
 
-        if (robot.state.isConnected) {
-            robot.state.requestedMode = modeHandler.decodeMode(
-                input.leftSwitch,
-                input.rightSwitch);
+        if(robot.state.isConnected) {
+            robot.state.requestedMode = modeHandler.decodeMode(input.leftSwitch, input.rightSwitch);
         }
 
-        if (imu1.isAvailable() && imu1.readData(robot.state.imu1)) {
+        if(imu1.isAvailable() && imu1.readData(robot.state.imu1)) {
             telemetryAccumulator.add(0, robot.state.imu1);
         }
-        if (imu2.isAvailable() && imu2.readData(robot.state.imu2)) {
+        if(imu2.isAvailable() && imu2.readData(robot.state.imu2)) {
             telemetryAccumulator.add(1, robot.state.imu2);
         }
 
         // sendSerialTelemetry(input);
 
-        #if ENABLE_DEBUG_AP 
-            sendWiFiTelemetry();
-        #endif
+#if ENABLE_DEBUG_AP
+        sendWiFiTelemetry();
+#endif
 
         modeHandler.update(robot);
 
@@ -344,10 +326,10 @@ void mainThread(void *pvParameters) {
 // ====================================================================
 // RECEIVER THREAD
 // ====================================================================
-void ReceiverThread(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(TASK_RECEIVER_MS); 
+void ReceiverThread(void* pvParameters) {
+    const TickType_t xFrequency = pdMS_TO_TICKS(TASK_RECEIVER_MS);
 
-    while (true) {
+    while(true) {
         receiver.update();
         vTaskDelay(xFrequency);
     }
@@ -356,8 +338,8 @@ void ReceiverThread(void *pvParameters) {
 // ====================================================================
 // LED THREAD
 // ====================================================================
-void LEDThread(void *pvParameters) {
-    while (true) {
+void LEDThread(void* pvParameters) {
+    while(true) {
         ledHandler.update();
         vTaskDelay(1);
     }

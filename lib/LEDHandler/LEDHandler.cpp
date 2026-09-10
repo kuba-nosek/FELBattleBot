@@ -1,29 +1,31 @@
 #include "LEDHandler.h"
+
 #include <Arduino.h>
 
-namespace
-{
-    bool hasReached(uint32_t currentUs, uint32_t deadlineUs)
-    {
-        return static_cast<int32_t>(currentUs - deadlineUs) >= 0;
-    }
-
-    bool isEarlier(uint32_t firstUs, uint32_t secondUs)
-    {
-        return static_cast<int32_t>(firstUs - secondUs) < 0;
-    }
+namespace {
+bool hasReached(uint32_t currentUs, uint32_t deadlineUs) {
+    return static_cast<int32_t>(currentUs - deadlineUs) >= 0;
 }
 
-LEDHandler::LEDHandler(uint8_t ledPin) 
-    : _ledPin(ledPin), _currentIndication(LEDIndication::Off), 
-      _currentAnimation(LEDAnimation::None), _animationActive(false),
-      _animationStartMs(0), _animationDurationMs(0), _lastToggleMs(0), 
-      _ledState(false), _stepCounter(0),
-      _flashRunning(false), _flashEndUs(0),
-      _flashPending(false), _pendingFlashStartUs(0),
-      _pendingFlashDurationUs(0), _pendingMinimumGapUs(0),
-      _hasLastFlashEnd(false), _lastFlashEndUs(0) {
+bool isEarlier(uint32_t firstUs, uint32_t secondUs) {
+    return static_cast<int32_t>(firstUs - secondUs) < 0;
 }
+
+bool isFlashValid(uint32_t startTimeFromNowUs, uint32_t flashDurationUs, uint32_t minimumTimeBetweenFlashesUs) {
+    if(flashDurationUs == 0) return false;
+    if(startTimeFromNowUs > INT32_MAX) return false;
+    if(flashDurationUs > INT32_MAX) return false;
+
+    const uint32_t maximumGapUs = static_cast<uint32_t>(INT32_MAX) - flashDurationUs;
+    return minimumTimeBetweenFlashesUs <= maximumGapUs;
+}
+} // namespace
+
+LEDHandler::LEDHandler(uint8_t ledPin)
+    : _ledPin(ledPin), _currentIndication(LEDIndication::Off), _currentAnimation(LEDAnimation::None),
+      _animationActive(false), _animationStartMs(0), _animationDurationMs(0), _lastToggleMs(0), _ledState(false),
+      _stepCounter(0), _flashRunning(false), _flashEndUs(0), _flashPending(false), _pendingFlashStartUs(0),
+      _pendingFlashDurationUs(0), _pendingMinimumGapUs(0), _hasLastFlashEnd(false), _lastFlashEndUs(0) {}
 
 void LEDHandler::init() {
     pinMode(_ledPin, OUTPUT);
@@ -31,7 +33,7 @@ void LEDHandler::init() {
 }
 
 void LEDHandler::setIndication(LEDIndication mode) {
-    if (_currentIndication == mode) return;
+    if(_currentIndication == mode) return;
 
     _currentIndication = mode;
 
@@ -46,8 +48,8 @@ void LEDHandler::playAnimation(LEDAnimation mode) {
     _currentAnimation = mode;
     _animationActive = true;
     _animationStartMs = millis();
-    
-    switch (mode) {
+
+    switch(mode) {
         case LEDAnimation::Bootup:
             _animationDurationMs = 2000;
             break;
@@ -66,42 +68,32 @@ void LEDHandler::playAnimation(LEDAnimation mode) {
     }
 }
 
-void LEDHandler::scheduleFlash(
-    uint32_t startTimeFromNowUs,
-    uint32_t flashDurationUs,
-    uint32_t minimumTimeBetweenFlashesUs) {
-    if (flashDurationUs == 0 ||
-        startTimeFromNowUs > INT32_MAX ||
-        flashDurationUs > INT32_MAX ||
-        minimumTimeBetweenFlashesUs >
-            static_cast<uint32_t>(INT32_MAX) - flashDurationUs) return;
+void LEDHandler::scheduleFlash(uint32_t startTimeFromNowUs, uint32_t flashDurationUs,
+                               uint32_t minimumTimeBetweenFlashesUs) {
+    if(!isFlashValid(startTimeFromNowUs, flashDurationUs, minimumTimeBetweenFlashesUs)) return;
 
     const uint32_t currentUs = micros();
     const uint32_t flashStartUs = currentUs + startTimeFromNowUs;
     bool shouldSchedule = true;
 
     portENTER_CRITICAL(&_flashStateLock);
-    if (_flashRunning) {
-        const uint32_t earliestStartUs =
-            _flashEndUs + minimumTimeBetweenFlashesUs;
+    if(_flashRunning) {
+        const uint32_t earliestStartUs = _flashEndUs + minimumTimeBetweenFlashesUs;
 
         shouldSchedule = !isEarlier(flashStartUs, earliestStartUs);
-    } else if (_hasLastFlashEnd) {
-        const uint32_t earliestStartUs =
-            _lastFlashEndUs + minimumTimeBetweenFlashesUs;
+    } else if(_hasLastFlashEnd) {
+        const uint32_t earliestStartUs = _lastFlashEndUs + minimumTimeBetweenFlashesUs;
 
-        if (!hasReached(currentUs, earliestStartUs) &&
-            isEarlier(flashStartUs, earliestStartUs)) {
+        if(!hasReached(currentUs, earliestStartUs) && isEarlier(flashStartUs, earliestStartUs)) {
             shouldSchedule = false;
         }
     }
 
-    if (shouldSchedule && _flashPending &&
-        !isEarlier(flashStartUs, _pendingFlashStartUs)) {
+    if(shouldSchedule && _flashPending && !isEarlier(flashStartUs, _pendingFlashStartUs)) {
         shouldSchedule = false;
     }
 
-    if (shouldSchedule) {
+    if(shouldSchedule) {
         _pendingFlashStartUs = flashStartUs;
         _pendingFlashDurationUs = flashDurationUs;
         _pendingMinimumGapUs = minimumTimeBetweenFlashesUs;
@@ -122,26 +114,24 @@ void LEDHandler::update() {
     bool shouldLight = false;
 
     portENTER_CRITICAL(&_flashStateLock);
-    if (_flashRunning && hasReached(currentUs, _flashEndUs)) {
+    if(_flashRunning && hasReached(currentUs, _flashEndUs)) {
         _flashRunning = false;
         _hasLastFlashEnd = true;
         _lastFlashEndUs = currentUs;
     }
 
-    if (!_flashRunning && _flashPending) {
+    if(!_flashRunning && _flashPending) {
         uint32_t earliestStartUs = _pendingFlashStartUs;
 
-        if (_hasLastFlashEnd) {
-            const uint32_t endOfMinimumGapUs =
-                _lastFlashEndUs + _pendingMinimumGapUs;
+        if(_hasLastFlashEnd) {
+            const uint32_t endOfMinimumGapUs = _lastFlashEndUs + _pendingMinimumGapUs;
 
-            if (!hasReached(currentUs, endOfMinimumGapUs) &&
-                isEarlier(earliestStartUs, endOfMinimumGapUs)) {
+            if(!hasReached(currentUs, endOfMinimumGapUs) && isEarlier(earliestStartUs, endOfMinimumGapUs)) {
                 earliestStartUs = endOfMinimumGapUs;
             }
         }
 
-        if (hasReached(currentUs, earliestStartUs)) {
+        if(hasReached(currentUs, earliestStartUs)) {
             _flashPending = false;
             _flashRunning = true;
             _flashEndUs = currentUs + _pendingFlashDurationUs;
@@ -150,28 +140,28 @@ void LEDHandler::update() {
     const bool flashRunning = _flashRunning;
     portEXIT_CRITICAL(&_flashStateLock);
 
-    if (_animationActive) {
-        if (currentMs - _animationStartMs >= _animationDurationMs) {
+    if(_animationActive) {
+        if(currentMs - _animationStartMs >= _animationDurationMs) {
             _animationActive = false;
             _currentAnimation = LEDAnimation::None;
         }
     }
 
-    if (_animationActive) {
+    if(_animationActive) {
         // --- ANIMATION (Priority) ---
         uint32_t elapsed = currentMs - _animationStartMs;
-        
-        switch (_currentAnimation) {
+
+        switch(_currentAnimation) {
             case LEDAnimation::Bootup:
                 // 4 Hz blinking
-                shouldLight = (elapsed % 250) < 125; 
+                shouldLight = (elapsed % 250) < 125;
                 break;
-                
+
             case LEDAnimation::ModeChanged:
                 // 10 Hz blinking
                 shouldLight = (elapsed % 100) < 50;
                 break;
-                
+
             case LEDAnimation::ErrorAlert:
                 // 5 Hz rapid blinking
                 shouldLight = (elapsed % 200) < 100;
@@ -181,14 +171,14 @@ void LEDHandler::update() {
                 // Single blink
                 shouldLight = (elapsed < 50);
                 break;
-                
+
             default:
                 shouldLight = true;
                 break;
         }
     } else {
         // --- INDICATION ---
-        switch (_currentIndication) {
+        switch(_currentIndication) {
             case LEDIndication::Off:
                 shouldLight = false;
                 break;
@@ -229,7 +219,7 @@ void LEDHandler::update() {
         }
     }
 
-    if (_ledState != shouldLight) {
+    if(_ledState != shouldLight) {
         _ledState = shouldLight;
         digitalWrite(_ledPin, _ledState ? HIGH : LOW);
     }

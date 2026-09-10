@@ -3,5 +3,5 @@
 #include "ReceiverInput.h"
 
 namespace SignalProcessing {
-    ReceiverInput processReceiverInput(const ReceiverChannels& channels);
+ReceiverInput processReceiverInput(const ReceiverChannels& channels);
 }

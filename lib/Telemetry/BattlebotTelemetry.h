@@ -43,7 +43,6 @@ uint16_t encodePeakMagnitudeCentiG(float accelerationG);
 int16_t encodeRpm(float rpm);
 
 // Builds a CRSF 0x80 frame with the private 0xF3 battlebot payload.
-size_t buildFrame(uint8_t* frame, size_t capacity, uint8_t sequence,
-                  const Snapshot& snapshot);
+size_t buildFrame(uint8_t* frame, size_t capacity, uint8_t sequence, const Snapshot& snapshot);
 
-}  // namespace BattlebotTelemetry
+} // namespace BattlebotTelemetry

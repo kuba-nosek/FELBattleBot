@@ -1,8 +1,9 @@
 #pragma once
-#include <stdint.h>
-#include <stddef.h>
-#include <freertos/FreeRTOS.h>
 #include "BattlebotTelemetry.h"
+
+#include <freertos/FreeRTOS.h>
+#include <stddef.h>
+#include <stdint.h>
 
 // Signal loss callback signature
 typedef void (*DisconnectCallback)();
@@ -25,44 +26,41 @@ struct TelemetryTxStats {
 };
 
 class Receiver {
-public:
+  public:
     Receiver(uint8_t rxPin, uint8_t txPin);
-    
-    void connect(); 
-    void update(); 
-    
+
+    void connect();
+    void update();
+
     bool isConnected() const;
     void onDisconnect(DisconnectCallback callback);
-    
+
     ReceiverChannels getChannelsSnapshot() const;
     ReceiverStats getStatistics() const;
     void sendTelemetry(const char* statusText, uint32_t currentMs);
-    bool sendBattlebotTelemetry(
-        const BattlebotTelemetry::Snapshot& snapshot,
-        uint32_t currentMs,
-        uint32_t intervalMs);
+    bool sendBattlebotTelemetry(const BattlebotTelemetry::Snapshot& snapshot, uint32_t currentMs, uint32_t intervalMs);
     TelemetryTxStats getTelemetryTxStats() const;
 
-private:
+  private:
     uint8_t _rxPin;
     uint8_t _txPin;
-    
+
     uint32_t _lastValidFrameMs;
     uint32_t _lastTelemetryMs;
     uint32_t _lastBattlebotTelemetryMs;
     uint8_t _telemetrySequence;
     ReceiverStats _stats;
     TelemetryTxStats _telemetryTxStats;
-    
+
     bool _connected;
     DisconnectCallback _disconnectCallback;
-    
+
     // --- Internal CRSF parser state ---
-    uint8_t _frame[64];
+    uint8_t _frame[64]{};
     size_t _position;
     size_t _expectedSize;
     uint16_t _channels[ReceiverChannels::COUNT];
     mutable portMUX_TYPE _channelsMux = portMUX_INITIALIZER_UNLOCKED;
-    
+
     void processByte(uint8_t byte);
 };

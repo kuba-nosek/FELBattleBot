@@ -2,7 +2,7 @@
 #include "IRobotMode.h"
 
 class IdleMode : public IRobotMode {
-public:
+  public:
     void init(RobotCore& robot) override;
     void execute(RobotCore& robot, const ReceiverInput& input) override;
 };

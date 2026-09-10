@@ -1,31 +1,25 @@
 #include "ModeHandler.h"
 
-ModeHandler::ModeHandler() 
-    : _currentMode(&_idleMode), _currentModeType(DriveModeType::Idle) {
-}
+ModeHandler::ModeHandler() : _currentMode(&_idleMode), _currentModeType(DriveModeType::Idle) {}
 
 void ModeHandler::update(RobotCore& robot) {
-    if (robot.state.requestedMode != _currentModeType) {
+    if(robot.state.requestedMode != _currentModeType) {
         changeMode(robot.state.requestedMode, robot);
     }
 }
 
-DriveModeType ModeHandler::decodeMode(
-    bool leftSwitch,
-    bool rightSwitch) const {
-    if (!leftSwitch) {
+DriveModeType ModeHandler::decodeMode(bool leftSwitch, bool rightSwitch) const {
+    if(!leftSwitch) {
         return DriveModeType::Idle;
     }
 
-    return rightSwitch
-        ? DriveModeType::Forward
-        : DriveModeType::Spin;
+    return rightSwitch ? DriveModeType::Forward : DriveModeType::Spin;
 }
 
 void ModeHandler::changeMode(DriveModeType newMode, RobotCore& robot) {
     _currentModeType = newMode;
 
-    switch (newMode) {
+    switch(newMode) {
         case DriveModeType::Forward:
             _currentMode = &_forwardMode;
             break;
