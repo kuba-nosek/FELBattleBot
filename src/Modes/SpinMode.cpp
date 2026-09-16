@@ -82,8 +82,7 @@ void SpinMode::init(RobotCore& robot) {
 }
 
 void SpinMode::updateHeading(float deltaSeconds, float angularSpeedRadPerSec) {
-
-    headingRadians_ = wrapRadians(headingRadians_ + spinDirection_ * angularSpeedRadPerSec);
+    headingRadians_ = wrapRadians(headingRadians_ + spinDirection_ * angularSpeedRadPerSec * deltaSeconds);
 }
 
 void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
