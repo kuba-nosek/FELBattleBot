@@ -2,10 +2,13 @@
 
 ModeHandler::ModeHandler() : _currentMode(&_idleMode), _currentModeType(DriveModeType::Idle) {}
 
-void ModeHandler::update(RobotCore& robot) {
-    if(robot.state.requestedMode != _currentModeType) {
-        changeMode(robot.state.requestedMode, robot);
+bool ModeHandler::update(RobotCore& robot) {
+    if(robot.state.requestedMode == _currentModeType) {
+        return false;
     }
+
+    changeMode(robot.state.requestedMode, robot);
+    return true;
 }
 
 DriveModeType ModeHandler::decodeMode(bool leftSwitch, bool rightSwitch) const {

@@ -38,7 +38,7 @@ class Receiver {
     ReceiverChannels getChannelsSnapshot() const;
     ReceiverStats getStatistics() const;
     void sendTelemetry(const char* statusText, uint32_t currentMs);
-    bool sendBattlebotTelemetry(const BattlebotTelemetry::Snapshot& snapshot, uint32_t currentMs, uint32_t intervalMs);
+    bool sendBattlebotTelemetry(const BattlebotTelemetry::TelemetryData& telemetry);
     TelemetryTxStats getTelemetryTxStats() const;
 
   private:
@@ -47,7 +47,6 @@ class Receiver {
 
     uint32_t _lastValidFrameMs;
     uint32_t _lastTelemetryMs;
-    uint32_t _lastBattlebotTelemetryMs;
     uint8_t _telemetrySequence;
     ReceiverStats _stats;
     TelemetryTxStats _telemetryTxStats;

@@ -1,17 +1,55 @@
 #include "BattlebotTelemetry.h"
 
-#include <cmath>
+#include <cstring>
+#include <limits>
 
 namespace BattlebotTelemetry {
 namespace {
 
 constexpr uint8_t CRSF_LENGTH = FRAME_SIZE - 2;
-constexpr float ACCELERATION_LIMIT_G = 100.0f;
-constexpr float PEAK_MAGNITUDE_LIMIT_G = 173.21f;
 
 void writeUint16BigEndian(uint8_t* destination, uint16_t value) {
     destination[0] = static_cast<uint8_t>(value >> 8);
     destination[1] = static_cast<uint8_t>(value);
+}
+
+void writeUint32BigEndian(uint8_t* destination, uint32_t value) {
+    destination[0] = static_cast<uint8_t>(value >> 24);
+    destination[1] = static_cast<uint8_t>(value >> 16);
+    destination[2] = static_cast<uint8_t>(value >> 8);
+    destination[3] = static_cast<uint8_t>(value);
+}
+
+void writeValue(uint8_t* destination, int8_t value) {
+    destination[0] = static_cast<uint8_t>(value);
+}
+
+void writeValue(uint8_t* destination, uint8_t value) {
+    destination[0] = value;
+}
+
+void writeValue(uint8_t* destination, int16_t value) {
+    writeUint16BigEndian(destination, static_cast<uint16_t>(value));
+}
+
+void writeValue(uint8_t* destination, uint16_t value) {
+    writeUint16BigEndian(destination, value);
+}
+
+void writeValue(uint8_t* destination, int32_t value) {
+    writeUint32BigEndian(destination, static_cast<uint32_t>(value));
+}
+
+void writeValue(uint8_t* destination, uint32_t value) {
+    writeUint32BigEndian(destination, value);
+}
+
+void writeValue(uint8_t* destination, float value) {
+    static_assert(sizeof(float) == sizeof(uint32_t), "Telemetry requires 32-bit IEEE-754 floats");
+    static_assert(std::numeric_limits<float>::is_iec559, "Telemetry requires IEEE-754 floats");
+    uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    writeUint32BigEndian(destination, bits);
 }
 
 uint8_t crc8DvbS2(const uint8_t* data, size_t length) {
@@ -25,37 +63,9 @@ uint8_t crc8DvbS2(const uint8_t* data, size_t length) {
     return crc;
 }
 
-float finiteAndConstrained(float value, float minimum, float maximum) {
-    if(!std::isfinite(value)) {
-        return 0.0f;
-    }
-    if(value < minimum) {
-        return minimum;
-    }
-    if(value > maximum) {
-        return maximum;
-    }
-    return value;
-}
-
 } // namespace
 
-int16_t encodeAccelerationCentiG(float accelerationG) {
-    const float limited = finiteAndConstrained(accelerationG, -ACCELERATION_LIMIT_G, ACCELERATION_LIMIT_G);
-    return static_cast<int16_t>(std::lround(limited * 100.0f));
-}
-
-uint16_t encodePeakMagnitudeCentiG(float accelerationG) {
-    const float limited = finiteAndConstrained(accelerationG, 0.0f, PEAK_MAGNITUDE_LIMIT_G);
-    return static_cast<uint16_t>(std::lround(limited * 100.0f));
-}
-
-int16_t encodeRpm(float rpm) {
-    const float limited = finiteAndConstrained(rpm, -32768.0f, 32767.0f);
-    return static_cast<int16_t>(std::lround(limited));
-}
-
-size_t buildFrame(uint8_t* frame, size_t capacity, uint8_t sequence, const Snapshot& snapshot) {
+size_t buildFrame(uint8_t* frame, size_t capacity, uint8_t sequence, const TelemetryData& telemetry) {
     if(frame == nullptr || capacity < FRAME_SIZE) {
         return 0;
     }
@@ -66,23 +76,31 @@ size_t buildFrame(uint8_t* frame, size_t capacity, uint8_t sequence, const Snaps
     frame[3] = PRIVATE_SUBTYPE;
     frame[4] = PROTOCOL_VERSION;
     frame[5] = sequence;
-    frame[6] = snapshot.validMask;
-    writeUint16BigEndian(&frame[7], static_cast<uint16_t>(snapshot.rpm));
 
-    size_t offset = 9;
-    for(size_t sensor = 0; sensor < SENSOR_COUNT; ++sensor) {
-        for(size_t axis = 0; axis < AXIS_COUNT; ++axis) {
-            writeUint16BigEndian(&frame[offset], static_cast<uint16_t>(snapshot.accelerationCentiG[sensor][axis]));
-            offset += 2;
-        }
-    }
+    uint32_t validFields = 0;
+    size_t fieldIndex = 0;
+#define TELEMETRY_SET_VALID_BIT(name, type)                                                                            \
+    if(telemetry.name.hasValue()) {                                                                                    \
+        validFields |= UINT32_C(1) << fieldIndex;                                                                      \
+    }                                                                                                                  \
+    ++fieldIndex;
 
-    for(size_t sensor = 0; sensor < SENSOR_COUNT; ++sensor) {
-        writeUint16BigEndian(&frame[offset], snapshot.peakMagnitudeCentiG[sensor]);
-        offset += 2;
-    }
+    TELEMETRY_FIELD_MAP(TELEMETRY_SET_VALID_BIT)
 
-    // CRC covers frame type and payload, excluding address and length.
+#undef TELEMETRY_SET_VALID_BIT
+
+    static_cast<void>(fieldIndex);
+    writeUint32BigEndian(&frame[6], validFields);
+
+    size_t offset = 10;
+#define TELEMETRY_WRITE_FIELD(name, type)                                                                              \
+    writeValue(&frame[offset], telemetry.name.hasValue() ? telemetry.name.value() : type{});                           \
+    offset += sizeof(type);
+
+    TELEMETRY_FIELD_MAP(TELEMETRY_WRITE_FIELD)
+
+#undef TELEMETRY_WRITE_FIELD
+
     frame[FRAME_SIZE - 1] = crc8DvbS2(&frame[2], FRAME_SIZE - 3);
     return FRAME_SIZE;
 }

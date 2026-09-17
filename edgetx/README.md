@@ -1,55 +1,77 @@
 # BattleBot EdgeTX telemetry
 
-This directory contains the Boxer-side decoder and display for the firmware's
-private CRSF telemetry packet. It is intended for EdgeTX 2.8 and ExpressLRS
+This directory contains the RadioMaster Boxer decoder and display for the
+firmware's private CRSF telemetry packet. It targets EdgeTX 2.8 and ExpressLRS
 3.5.1.
 
-## Install on the RadioMaster Boxer
+## Generate and install
 
-1. Copy `SCRIPTS/TELEMETRY/BBOT.lua` to the same path on the radio SD card.
-2. In the model, keep the internal ExpressLRS RF module enabled normally. The
-   Lua screen does not replace the mixer or channel transmission.
-3. Open `Model settings` -> `Telemetry screens`, choose a `Script` screen, and
-   select `BBOT`.
-4. Open that telemetry screen. Short-press Enter to select the plotted
-   accelerometer axis. Long-press Enter to switch between graphs and values.
-5. To expose RPM, all six axes, and both peak magnitudes as normal EdgeTX
-   telemetry sources, run `Discover new sensors` while `BBOT` is active and
-   telemetry is linked.
+`include/config.h` is the single source of truth for packet fields:
 
-The firmware sends averages for each acceleration axis and the maximum vector
-magnitude observed in each 100 ms packet window. RPM is calculated and marked
-valid only while Spin mode is active. A graph packet marked `STALE` has not
-arrived for at least one second.
+```cpp
+#define TELEMETRY_FIELD_MAP(X) \
+    X(mode, uint8_t)            \
+    X(rpm, int16_t)             \
+    X(accel1X, float)
+```
 
-## Firmware switches
+Supported types are `int8_t`, `uint8_t`, `int16_t`, `uint16_t`, `int32_t`,
+`uint32_t`, and `float`. Field order in the map is field order on the wire.
+There can be at most 32 fields, and the resulting CRSF frame must not exceed 64
+bytes.
 
-Edit the `Custom CRSF telemetry` section of `include/config.h`, then rebuild the
-ESP32 firmware. `TELEMETRY_ENABLED` controls the complete packet. RPM and every
-accelerometer axis have separate `TELEMETRY_SEND_*` switches. Disabled fields
-remain in the fixed-size packet but have their validity bit cleared, so the Lua
-screen ignores them.
+Every PlatformIO build regenerates three self-contained telemetry screens. To
+regenerate them without building the firmware, run:
 
-## Compatibility note
+```sh
+python3 scripts/generate_telemetry_lua.py
+```
 
-The packet is CRSF frame type `0x80` (ArduPilot reserved passthrough), followed
-by private subtype `0xF3`. ExpressLRS 3.5.1 forwards type `0x80`, and EdgeTX
-passes unknown CRSF frame types to Lua. The subtype prevents this script from
-interpreting normal ArduPilot payloads, but this private scheme must not be used
-at the same time as ArduPilot/Yaapu passthrough telemetry because both share the
-same reserved frame namespace and Lua receive queue.
+Copy the generated files to the same paths on the radio SD card:
 
-Packet bytes received by Lua are:
+- `edgetx/SCRIPTS/TELEMETRY/BBGRPH.lua` to `/SCRIPTS/TELEMETRY/BBGRPH.lua`
+- `edgetx/SCRIPTS/TELEMETRY/BBVALS.lua` to `/SCRIPTS/TELEMETRY/BBVALS.lua`
+- `edgetx/SCRIPTS/TELEMETRY/BBRAW.lua` to `/SCRIPTS/TELEMETRY/BBRAW.lua`
+
+Remove the old combined `BBOT.lua` and `BBOT.luac` files if they are present.
+In the model settings, assign `BBGRPH`, `BBVALS`, and `BBRAW` to three telemetry
+Script screens. The generated files must match the firmware's field map.
+
+When replacing an existing installation, also delete the old `/SCRIPTS/BBOT`
+directory and `BBGRPH.luac`, `BBVALS.luac`, and `BBRAW.luac`. EdgeTX will
+compile fresh copies from the updated `.lua` files.
+
+## Controls and views
+
+Press TELE to open the configured telemetry screens. PAGE> and PAGE< use the
+normal EdgeTX navigation to switch between:
+
+- `BBGRPH`: the RPM/acceleration graph.
+- `BBVALS`: formatted mode, RPM, and accelerometer values.
+- `BBRAW`: a generated raw table containing every configured field.
+
+Turn the rotary control to select the plotted acceleration axis or move through
+raw-table pages. An invalid field is displayed as `--`.
+
+RPM and the six recognized accelerometer names are also published as normal
+EdgeTX telemetry sensors. Acceleration is transmitted directly as float m/s²
+and converted to centi-g when published as an EdgeTX `UNIT_G` sensor.
+
+## Packet layout
+
+The packet uses CRSF frame type `0x80`, private subtype `0xF3`, and protocol
+version 2. It must not be used together with ArduPilot/Yaapu passthrough
+telemetry because they share the same reserved CRSF frame namespace.
+
+The payload passed to Lua contains:
 
 | Offset | Size | Meaning |
 | --- | ---: | --- |
 | 0 | 1 | Private subtype `0xF3` |
-| 1 | 1 | Protocol version `1` |
+| 1 | 1 | Protocol version `2` |
 | 2 | 1 | Sequence number |
-| 3 | 1 | Validity mask: RPM, then A1 XYZ, then A2 XYZ |
-| 4 | 2 | Signed RPM, big-endian |
-| 6 | 12 | Six signed acceleration averages, `0.01 g`, big-endian |
-| 18 | 4 | Two unsigned peak magnitudes, `0.01 g`, big-endian |
+| 3 | 4 | Big-endian validity mask; one bit per configured field |
+| 7 | Variable | Configured fields in `TELEMETRY_FIELD_MAP` order |
 
-The complete on-wire CRSF frame is 26 bytes including address, length, frame
-type, and CRC8-DVB-S2.
+Invalid fields remain in the fixed packet layout with zero data and a cleared
+validity bit. Multibyte integer and IEEE-754 float values are big-endian.
