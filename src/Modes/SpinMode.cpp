@@ -79,6 +79,9 @@ void SpinMode::init(RobotCore& robot) {
 
     robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
     robot.hw.led->setIndication(LEDIndication::Spin);
+    robot.hw.led->setStripMode(LEDStripMode::Spinning);
+    robot.hw.led->setAnimation(LEDStripAnimation::TestPattern);
+    robot.hw.led->setAngularVelocity(0.0f);
     robot.hw.led->cancelScheduledFlash();
 }
 
@@ -105,6 +108,9 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
 
     if(power != 0) spinDirection_ = power > 0 ? 1 : -1;
 
+    const float signedAngularVelocityRadPerSec = spinDirection_ * angularSpeedRadPerSec_;
+    robot.hw.led->setAngularVelocity(signedAngularVelocityRadPerSec);
+
     if(std::isfinite(angularSpeedRadPerSec_)) updateHeading(deltaSeconds, angularSpeedRadPerSec_);
 
     const float constantHeadingOffsetRadians = calculateConstantHeadingOffsetRadians(input.rightPot);
@@ -121,7 +127,7 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     const float correctedHeadingRadians = wrapRadians(combinedHeadingRadians);
     const float correctedAngularSpeedRadPerSec = spinDirection_ * angularSpeedRadPerSec_ + headingChangeSpeedRadPerSec;
 
-    if(power==0) amplitude = 0;
+    if(power == 0) amplitude = 0;
     const MotorPowers motorPowers = calculateMotorPowers(power, amplitude, correctedHeadingRadians);
 
     robot.hw.leftMotor->setSpeed(static_cast<int16_t>(motorPowers.left), robot.state.currentMs);

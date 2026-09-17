@@ -76,6 +76,8 @@ MotorPowers mixMotorPowers(int32_t throttle, int32_t steering) {
 void ForwardMode::init(RobotCore& robot) {
     robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
     robot.hw.led->setIndication(LEDIndication::Forward);
+    robot.hw.led->setStripMode(LEDStripMode::Static);
+    robot.hw.led->setAnimation(LEDStripAnimation::Forward);
 }
 
 void ForwardMode::execute(RobotCore& robot, const ReceiverInput& input) {

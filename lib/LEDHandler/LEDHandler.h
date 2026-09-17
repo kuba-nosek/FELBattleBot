@@ -1,4 +1,6 @@
 #pragma once
+#include "GeneratedLEDStripImages.h"
+
 #include <freertos/FreeRTOS.h>
 #include <stdint.h>
 
@@ -7,6 +9,8 @@ enum class LEDIndication : uint8_t { Off = 0, Idle, Forward, Spin, Failsafe, Low
 
 // Short-term priority animation states
 enum class LEDAnimation : uint8_t { None = 0, Bootup, ModeChanged, ErrorAlert, TelemetrySent };
+
+enum class LEDStripMode : uint8_t { Static, Spinning };
 
 class LEDHandler {
   public:
@@ -25,6 +29,10 @@ class LEDHandler {
 
     // Cancel only the pending flash. A running flash is allowed to finish.
     void cancelScheduledFlash();
+
+    void setStripMode(LEDStripMode mode);
+    void setAnimation(LEDStripAnimation animation);
+    void setAngularVelocity(float radiansPerSecond);
 
     // Must be called cyclically in the dedicated LED thread
     void update();
@@ -59,4 +67,29 @@ class LEDHandler {
     uint32_t _lastFlashEndUs;
 
     portMUX_TYPE _flashStateLock = portMUX_INITIALIZER_UNLOCKED;
+
+    LEDStripMode _stripMode;
+    LEDStripAnimation _stripAnimation;
+    float _stripAngularVelocityRadPerSec;
+    bool _stripModeChanged;
+    bool _stripAnimationChanged;
+
+    float _stripAngleRadians;
+    uint32_t _lastStripIntegrationUs;
+    uint32_t _lastStripRefreshUs;
+    uint32_t _stripAnimationStartMs;
+    bool _stripFrameSent;
+    uint32_t _stripPixels[RobotConfig::LED_STRIP_LED_COUNT];
+    uint32_t _lastStripPixels[RobotConfig::LED_STRIP_LED_COUNT];
+
+    portMUX_TYPE _stripStateLock = portMUX_INITIALIZER_UNLOCKED;
+    portMUX_TYPE _stripOutputLock = portMUX_INITIALIZER_UNLOCKED;
+
+    void updateStrip(uint32_t currentMs, uint32_t currentUs);
+    void renderStaticStrip(LEDStripAnimation animation, uint32_t elapsedMs);
+    void renderSpinningStrip(LEDStripAnimation animation);
+    void applyStripBrightness();
+    bool stripPixelsChanged() const;
+    void rememberStripPixels();
+    void transmitStripFrame();
 };
