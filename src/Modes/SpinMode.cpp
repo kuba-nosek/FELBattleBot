@@ -93,7 +93,7 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
 
     const float deltaSeconds = static_cast<float>(deltaUs) * MICROSECONDS_TO_SECONDS;
     const int32_t power = input.leftStickVertical;
-    const int32_t amplitude = input.rightStickVertical;
+    int32_t amplitude = input.rightStickVertical;
 
     const float sensorRadiusMeters = calculateSensorRadiusMeters(input.leftPot);
 
@@ -121,6 +121,7 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     const float correctedHeadingRadians = wrapRadians(combinedHeadingRadians);
     const float correctedAngularSpeedRadPerSec = spinDirection_ * angularSpeedRadPerSec_ + headingChangeSpeedRadPerSec;
 
+    if(power==0) amplitude = 0;
     const MotorPowers motorPowers = calculateMotorPowers(power, amplitude, correctedHeadingRadians);
 
     robot.hw.leftMotor->setSpeed(static_cast<int16_t>(motorPowers.left), robot.state.currentMs);
