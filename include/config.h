@@ -40,9 +40,9 @@ constexpr float IMU2_OFFSET_Z_G = 1.94f;
 // ==========================================
 // RTOS thread timing
 // ==========================================
-constexpr uint32_t TASK_CONTROL_HZ = 200; // Main thread frequency (200 Hz = 5 ms)
-constexpr uint32_t TASK_RECEIVER_MS = 2;  // UART readout interval
-constexpr uint32_t TASK_LED_MS = 40;      // LED update interval
+constexpr uint32_t TASK_CONTROL_HZ = 200;
+constexpr uint32_t TASK_RECEIVER_HZ = 500;
+constexpr uint32_t TASK_LED_HZ = 1000;
 
 // ==========================================
 // Custom CRSF telemetry (EdgeTX BBOT.lua)
@@ -100,12 +100,12 @@ constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
 // Format: X(fieldName, fieldType)
 // Supported field types: int8_t, uint8_t, int16_t, uint16_t, int32_t,
 // uint32_t, float.
-#define TELEMETRY_FIELD_MAP(X) \
-    X(mode, uint8_t)           \
-    X(rpm, int16_t)            \
-    X(accel1X, float)          \
-    X(accel1Y, float)          \
-    X(accel1Z, float)          \
-    X(accel2X, float)          \
-    X(accel2Y, float)          \
+#define TELEMETRY_FIELD_MAP(X)                                                                                         \
+    X(mode, uint8_t)                                                                                                   \
+    X(rpm, int16_t)                                                                                                    \
+    X(accel1X, float)                                                                                                  \
+    X(accel1Y, float)                                                                                                  \
+    X(accel1Z, float)                                                                                                  \
+    X(accel2X, float)                                                                                                  \
+    X(accel2Y, float)                                                                                                  \
     X(accel2Z, float)

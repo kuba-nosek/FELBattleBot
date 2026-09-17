@@ -98,7 +98,7 @@ void mainThread(void* pvParameters) {
     robot.hw.rx = &receiver;
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(1000 / TASK_CONTROL_HZ);
+    const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_CONTROL_HZ);
 
     // light indication sync
     modeHandler.update(robot);
@@ -129,7 +129,7 @@ void mainThread(void* pvParameters) {
             telemetryManager.sendTelemetry(robot, *currentMode);
         }
 
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        vTaskDelayUntil(&xLastWakeTime, taskPeriod);
     }
 }
 
@@ -137,11 +137,11 @@ void mainThread(void* pvParameters) {
 // RECEIVER THREAD
 // ====================================================================
 void ReceiverThread(void* pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(TASK_RECEIVER_MS);
+    const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_RECEIVER_HZ);
 
     while(true) {
         receiver.update();
-        vTaskDelay(xFrequency);
+        vTaskDelay(taskPeriod);
     }
 }
 
@@ -149,8 +149,10 @@ void ReceiverThread(void* pvParameters) {
 // LED THREAD
 // ====================================================================
 void LEDThread(void* pvParameters) {
+    const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_LED_HZ);
+
     while(true) {
         ledHandler.update();
-        vTaskDelay(1);
+        vTaskDelay(taskPeriod);
     }
 }
