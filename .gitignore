@@ -1,3 +1,6 @@
-.pio
-.vscode
-.continue
+.pio/
+.vscode/
+.continue/
+texluac.out
+__pycache__/
+*.pyc
