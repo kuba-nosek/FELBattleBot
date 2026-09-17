@@ -75,6 +75,7 @@ void SpinMode::init(RobotCore& robot) {
     variableHeadingOffsetRadians_ = 0.0f;
     lastUpdateUs_ = micros();
     spinDirection_ = 1;
+    angularSpeedRadPerSec_ = 0.0f;
 
     robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
     robot.hw.led->setIndication(LEDIndication::Spin);
@@ -100,18 +101,11 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     // the radial acceleration estimate.
     const float centripetalAccelerationMps2 = std::hypot(robot.state.imu1.xMps2, robot.state.imu1.yMps2);
 
-    const float angularSpeedRadPerSec = calculateAngularSpeed(centripetalAccelerationMps2, sensorRadiusMeters);
+    angularSpeedRadPerSec_ = calculateAngularSpeed(centripetalAccelerationMps2, sensorRadiusMeters);
 
     if(power != 0) spinDirection_ = power > 0 ? 1 : -1;
 
-    robot.state.rpm = spinDirection_ * angularSpeedRadPerSec * (60.0f / TWO_PI_RADIANS);
-
-    robot.state.rpmValid = std::isfinite(robot.state.rpm);
-    if(!robot.state.rpmValid) {
-        robot.state.rpm = 0.0f;
-    }
-
-    if(std::isfinite(angularSpeedRadPerSec)) updateHeading(deltaSeconds, angularSpeedRadPerSec);
+    if(std::isfinite(angularSpeedRadPerSec_)) updateHeading(deltaSeconds, angularSpeedRadPerSec_);
 
     const float constantHeadingOffsetRadians = calculateConstantHeadingOffsetRadians(input.rightPot);
 
@@ -125,14 +119,14 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     const float combinedHeadingRadians =
         headingRadians_ + constantHeadingOffsetRadians_ + variableHeadingOffsetRadians_;
     const float correctedHeadingRadians = wrapRadians(combinedHeadingRadians);
-    const float correctedAngularSpeedRadPerSec = spinDirection_ * angularSpeedRadPerSec + headingChangeSpeedRadPerSec;
+    const float correctedAngularSpeedRadPerSec = spinDirection_ * angularSpeedRadPerSec_ + headingChangeSpeedRadPerSec;
 
     const MotorPowers motorPowers = calculateMotorPowers(power, amplitude, correctedHeadingRadians);
 
     robot.hw.leftMotor->setSpeed(static_cast<int16_t>(motorPowers.left), robot.state.currentMs);
     robot.hw.rightMotor->setSpeed(static_cast<int16_t>(motorPowers.right), robot.state.currentMs);
 
-    if(angularSpeedRadPerSec <= 0.0f || !std::isfinite(angularSpeedRadPerSec)) {
+    if(angularSpeedRadPerSec_ <= 0.0f || !std::isfinite(angularSpeedRadPerSec_)) {
         robot.hw.led->cancelScheduledFlash();
         return;
     }
@@ -145,7 +139,19 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
         return;
     }
 
-
     robot.hw.led->scheduleFlash(static_cast<uint32_t>(timeUntilHeadingOffsetUs), LED_FLASH_DURATION_US,
                                 LED_MINIMUM_TIME_BETWEEN_FLASHES_US);
+}
+
+void SpinMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const {
+    telemetry.mode = DriveModeType::Spin;
+    telemetry.accel1X = robot.state.imu1.xMps2;
+    telemetry.accel1Y = robot.state.imu1.yMps2;
+    telemetry.accel1Z = robot.state.imu1.zMps2;
+    telemetry.accel2X = robot.state.imu2.xMps2;
+    telemetry.accel2Y = robot.state.imu2.yMps2;
+    telemetry.accel2Z = robot.state.imu2.zMps2;
+
+    const float rpm = spinDirection_ * angularSpeedRadPerSec_ * (60.0f / TWO_PI_RADIANS);
+    telemetry.rpm = static_cast<int16_t>(rpm);
 }

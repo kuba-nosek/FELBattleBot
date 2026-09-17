@@ -31,7 +31,7 @@ bool IMU::init() {
         writeConfig(CTRL_REG1, 0x27); // 50 Hz, XYZ axes enabled
         writeConfig(CTRL_REG2, 0x00);
         writeConfig(CTRL_REG3, 0x00);
-        writeConfig(CTRL_REG4, 0x80); // Block Data Update (BDU) active, +-100g
+        writeConfig(CTRL_REG4, 0x30); // Block Data Update (BDU) active, +-100g
         writeConfig(CTRL_REG5, 0x00);
 
         _isAvailable = true;

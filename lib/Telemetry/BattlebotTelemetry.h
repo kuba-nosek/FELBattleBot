@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -8,41 +10,85 @@ namespace BattlebotTelemetry {
 constexpr uint8_t CRSF_ADDRESS_FLIGHT_CONTROLLER = 0xC8;
 constexpr uint8_t CRSF_FRAME_TYPE_ARDUPILOT = 0x80;
 constexpr uint8_t PRIVATE_SUBTYPE = 0xF3;
-constexpr uint8_t PROTOCOL_VERSION = 1;
+constexpr uint8_t PROTOCOL_VERSION = 2;
 
-constexpr size_t SENSOR_COUNT = 2;
-constexpr size_t AXIS_COUNT = 3;
-constexpr size_t FRAME_SIZE = 26;
+template <typename T> class TelemetryField {
+  public:
+    TelemetryField& operator=(T value) {
+        value_ = value;
+        valid_ = true;
+        return *this;
+    }
 
-enum ValidField : uint8_t {
-    VALID_RPM = 1U << 0,
-    VALID_ACCEL1_X = 1U << 1,
-    VALID_ACCEL1_Y = 1U << 2,
-    VALID_ACCEL1_Z = 1U << 3,
-    VALID_ACCEL2_X = 1U << 4,
-    VALID_ACCEL2_Y = 1U << 5,
-    VALID_ACCEL2_Z = 1U << 6,
+    TelemetryField& operator=(decltype(nullptr)) {
+        reset();
+        return *this;
+    }
+
+    void reset() {
+        value_ = T{};
+        valid_ = false;
+    }
+
+    bool hasValue() const {
+        return valid_;
+    }
+
+    T value() const {
+        return value_;
+    }
+
+  private:
+    T value_{};
+    bool valid_ = false;
 };
 
-struct Snapshot {
-    int16_t rpm = 0;
-    int16_t accelerationCentiG[SENSOR_COUNT][AXIS_COUNT]{};
-    uint16_t peakMagnitudeCentiG[SENSOR_COUNT]{};
-    uint8_t validMask = 0;
+#define TELEMETRY_DECLARE_FIELD(name, type) TelemetryField<type> name{};
+
+struct TelemetryData {
+    TELEMETRY_FIELD_MAP(TELEMETRY_DECLARE_FIELD)
+
+    void clear() {
+#define TELEMETRY_RESET_FIELD(name, type) name.reset();
+        TELEMETRY_FIELD_MAP(TELEMETRY_RESET_FIELD)
+#undef TELEMETRY_RESET_FIELD
+    }
 };
 
-// The private payload transports acceleration in 0.01 g units. The physical
-// sensors are configured for +/-100 g, so values are limited to that range.
-int16_t encodeAccelerationCentiG(float accelerationG);
+#undef TELEMETRY_DECLARE_FIELD
 
-// Peak vector magnitude can reach sqrt(3) * 100 g even when every individual
-// axis remains inside its +/-100 g range.
-uint16_t encodePeakMagnitudeCentiG(float accelerationG);
+#define TELEMETRY_COUNT_FIELD(name, type) +1
+constexpr size_t FIELD_COUNT = 0 TELEMETRY_FIELD_MAP(TELEMETRY_COUNT_FIELD);
+#undef TELEMETRY_COUNT_FIELD
 
-// RPM is transported as a signed value so the spin direction is retained.
-int16_t encodeRpm(float rpm);
+#define TELEMETRY_TYPE_SIZE_int8_t 1
+#define TELEMETRY_TYPE_SIZE_uint8_t 1
+#define TELEMETRY_TYPE_SIZE_int16_t 2
+#define TELEMETRY_TYPE_SIZE_uint16_t 2
+#define TELEMETRY_TYPE_SIZE_int32_t 4
+#define TELEMETRY_TYPE_SIZE_uint32_t 4
+#define TELEMETRY_TYPE_SIZE_float 4
+#define TELEMETRY_FIELD_SIZE(name, type) +TELEMETRY_TYPE_SIZE_##type
 
-// Builds a CRSF 0x80 frame with the private 0xF3 battlebot payload.
-size_t buildFrame(uint8_t* frame, size_t capacity, uint8_t sequence, const Snapshot& snapshot);
+constexpr size_t SERIALIZED_FIELDS_SIZE = 0 TELEMETRY_FIELD_MAP(TELEMETRY_FIELD_SIZE);
+
+#undef TELEMETRY_FIELD_SIZE
+#undef TELEMETRY_TYPE_SIZE_float
+#undef TELEMETRY_TYPE_SIZE_uint32_t
+#undef TELEMETRY_TYPE_SIZE_int32_t
+#undef TELEMETRY_TYPE_SIZE_uint16_t
+#undef TELEMETRY_TYPE_SIZE_int16_t
+#undef TELEMETRY_TYPE_SIZE_uint8_t
+#undef TELEMETRY_TYPE_SIZE_int8_t
+
+constexpr size_t VALIDITY_MASK_SIZE = sizeof(uint32_t);
+constexpr size_t PRIVATE_HEADER_SIZE = 3 + VALIDITY_MASK_SIZE;
+constexpr size_t PRIVATE_PAYLOAD_SIZE = PRIVATE_HEADER_SIZE + SERIALIZED_FIELDS_SIZE;
+constexpr size_t FRAME_SIZE = 2 + 1 + PRIVATE_PAYLOAD_SIZE + 1;
+
+static_assert(FIELD_COUNT <= 32, "Telemetry supports at most 32 configured fields");
+static_assert(FRAME_SIZE <= 64, "Configured telemetry fields exceed the CRSF frame size limit");
+
+size_t buildFrame(uint8_t* frame, size_t capacity, uint8_t sequence, const TelemetryData& telemetry);
 
 } // namespace BattlebotTelemetry

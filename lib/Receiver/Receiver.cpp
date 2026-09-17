@@ -46,8 +46,8 @@ uint16_t rawToMicroseconds(const uint16_t raw) {
 } // namespace
 
 Receiver::Receiver(uint8_t rxPin, uint8_t txPin)
-    : _rxPin(rxPin), _txPin(txPin), _lastValidFrameMs(0), _lastTelemetryMs(0), _lastBattlebotTelemetryMs(0),
-      _telemetrySequence(0), _connected(false), _disconnectCallback(nullptr) {
+    : _rxPin(rxPin), _txPin(txPin), _lastValidFrameMs(0), _lastTelemetryMs(0), _telemetrySequence(0),
+      _connected(false), _disconnectCallback(nullptr) {
     _position = 0;
     _expectedSize = 0;
     for(size_t i = 0; i < ReceiverChannels::COUNT; ++i) {
@@ -216,14 +216,13 @@ void Receiver::sendTelemetry(const char* statusText, uint32_t currentMs) {
     }
 }
 
-bool Receiver::sendBattlebotTelemetry(const BattlebotTelemetry::Snapshot& snapshot, uint32_t currentMs,
-                                      uint32_t intervalMs) {
-    if(!_connected || currentMs - _lastBattlebotTelemetryMs < intervalMs) {
+bool Receiver::sendBattlebotTelemetry(const BattlebotTelemetry::TelemetryData& telemetry) {
+    if(!_connected) {
         return false;
     }
 
     uint8_t frame[BattlebotTelemetry::FRAME_SIZE];
-    const size_t frameSize = BattlebotTelemetry::buildFrame(frame, sizeof(frame), _telemetrySequence, snapshot);
+    const size_t frameSize = BattlebotTelemetry::buildFrame(frame, sizeof(frame), _telemetrySequence, telemetry);
     if(frameSize == 0) {
         return false;
     }
@@ -239,7 +238,6 @@ bool Receiver::sendBattlebotTelemetry(const BattlebotTelemetry::Snapshot& snapsh
         return false;
     }
 
-    _lastBattlebotTelemetryMs = currentMs;
     ++_telemetrySequence;
     ++_telemetryTxStats.sentPackets;
     return true;

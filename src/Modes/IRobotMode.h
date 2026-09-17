@@ -1,4 +1,5 @@
 #pragma once
+#include "BattlebotTelemetry.h"
 #include "DriveModeType.h"
 #include "IMU.h"
 #include "LEDHandler.h"
@@ -14,8 +15,6 @@ struct RobotState {
     DriveModeType requestedMode = DriveModeType::Idle;
     IMUData imu1{};
     IMUData imu2{};
-    float rpm = 0.0f;
-    bool rpmValid = false;
 };
 
 struct RobotHardware {
@@ -53,4 +52,7 @@ class IRobotMode {
 
     // 2. Called continuously from the main control loop with the latest inputs.
     virtual void execute(RobotCore& robot, const ReceiverInput& input) = 0;
+
+    // 3. Populates the fields owned by this mode for the next telemetry packet.
+    virtual void sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const = 0;
 };

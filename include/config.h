@@ -4,17 +4,6 @@
 // ==========================================
 // DEBUG AP & TELEMETRY
 // ==========================================
-#ifndef ENABLE_DEBUG_AP
-#define ENABLE_DEBUG_AP false
-#endif
-
-#if ENABLE_DEBUG_AP
-constexpr char AP_SSID[] = "FELBattleBot";
-constexpr char AP_PASS[] = "melty123";
-constexpr char UDP_BROADCAST_IP[] = "192.168.4.255";
-constexpr uint16_t UDP_PORT = 4444;
-#endif
-
 namespace RobotConfig {
 // ==========================================
 // PINOUT
@@ -61,15 +50,7 @@ constexpr uint32_t TASK_LED_MS = 40;      // LED update interval
 // This uses a private payload (0xF3) inside CRSF frame type 0x80.
 // Do not enable it together with ArduPilot/Yaapu passthrough telemetry.
 constexpr bool TELEMETRY_ENABLED = true;
-constexpr uint32_t TELEMETRY_INTERVAL_MS = 100; // 10 packets/second
-
-constexpr bool TELEMETRY_SEND_RPM = true;
-constexpr bool TELEMETRY_SEND_ACCEL1_X = true;
-constexpr bool TELEMETRY_SEND_ACCEL1_Y = true;
-constexpr bool TELEMETRY_SEND_ACCEL1_Z = true;
-constexpr bool TELEMETRY_SEND_ACCEL2_X = true;
-constexpr bool TELEMETRY_SEND_ACCEL2_Y = true;
-constexpr bool TELEMETRY_SEND_ACCEL2_Z = true;
+constexpr uint32_t TELEMETRY_INTERVAL_MS = 500;
 
 // ==========================================
 // RC & Signal Processing
@@ -114,3 +95,17 @@ constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
     X(leftPot, Potentiometer, 11)                                                                                      \
     X(rightPot, Potentiometer, 15)                                                                                     \
     X(sixStateSwitch, SixStateSwitch, 14)
+
+// Compile-time telemetry packet configuration.
+// Format: X(fieldName, fieldType)
+// Supported field types: int8_t, uint8_t, int16_t, uint16_t, int32_t,
+// uint32_t, float.
+#define TELEMETRY_FIELD_MAP(X) \
+    X(mode, uint8_t)           \
+    X(rpm, int16_t)            \
+    X(accel1X, float)          \
+    X(accel1Y, float)          \
+    X(accel1Z, float)          \
+    X(accel2X, float)          \
+    X(accel2Y, float)          \
+    X(accel2Z, float)

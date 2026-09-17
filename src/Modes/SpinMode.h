@@ -6,6 +6,7 @@ class SpinMode : public IRobotMode {
   public:
     void init(RobotCore& robot) override;
     void execute(RobotCore& robot, const ReceiverInput& input) override;
+    void sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const override;
 
   private:
     float headingRadians_ = 0.0f;
@@ -13,6 +14,7 @@ class SpinMode : public IRobotMode {
     float variableHeadingOffsetRadians_ = 0.0f;
     uint32_t lastUpdateUs_ = 0;
     int8_t spinDirection_ = 1;
+    float angularSpeedRadPerSec_ = 0.0f;
 
     void updateHeading(float deltaSeconds, float angularSpeedRadPerSec);
 };

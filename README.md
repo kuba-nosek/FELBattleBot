@@ -48,7 +48,7 @@ An isolated driver for parsing the ExpressLRS / Crossfire serial protocol via UA
 *   **`connect()` & `update()`**: Initializes the UART at 420000 baud, reads the buffer, identifies frame boundaries, validates CRC8, and decodes RC channels/link statistics natively.
 *   **`getChannelsSnapshot()`**: Returns one coherent snapshot of all channel pulse widths (988–2012 µs) without mixing values from different CRSF frames.
 *   **`sendTelemetry(text, currentMs)`**: Packages and transmits a standard CRSF flight-mode text frame.
-*   **`sendBattlebotTelemetry(snapshot, currentMs, intervalMs)`**: Sends the private `0x80/0xF3` packet decoded by the Boxer Lua screen.
+*   **`sendBattlebotTelemetry(telemetry)`**: Sends the schema-driven private `0x80/0xF3` packet decoded by the Boxer Lua screen.
 *   **`onDisconnect(callback)`**: Registers a safety callback executed immediately upon signal loss.
 
 ### 4. `LEDHandler` (Status and Flash UI)
@@ -98,8 +98,11 @@ The application-specific logic is encapsulated in the `src/` directory, maintain
 The logical core of the robot utilizing polymorphism to manage diverse driving behaviors without conditional clutter.
 *   **`IRobotMode::execute(RobotCore& robot, const ReceiverInput& input)`**: An abstract interface implemented by specific classes (`IdleMode`, `ForwardMode`, `SpinMode`) located in the `src/Modes/` directory. Each mode receives the current controls explicitly and drives the components via `robot.hw`.
 *   **`IRobotMode::init(RobotCore& robot)`**: Executed once upon entering a new mode (e.g., triggering a UI animation or resetting IMU filters).
+*   **`IRobotMode::sendTelemetry(const RobotCore&, TelemetryData&)`**: Populates the configured nullable telemetry fields owned by the active mode.
 *   **`ModeHandler::update(RobotCore& robot)`**: Safely manages state transitions and invokes the active mode's logic.
 *   **`ModeHandler::decodeMode(leftSwitch, rightSwitch)`**: Maps the processed mode switches to a `DriveModeType`.
+*   **`TelemetryManager::shouldSendTelemetry(...)`**: Checks the 500 ms schedule and records immediate mode-change requests.
+*   **`TelemetryManager::sendTelemetry(...)`**: Populates and transmits one packet while retaining failed sends for retry.
 
 ### 2. `SignalProcessing` (Application Math)
 A local namespace dedicated to math operations specific to this robot's RC configuration.
@@ -109,14 +112,21 @@ A local namespace dedicated to math operations specific to this robot's RC confi
 
 ## EdgeTX Telemetry
 
-The control loop sends signed Spin-mode RPM, the averaged XYZ output of both
-high-g accelerometers, and each accelerometer's peak vector magnitude at 10 Hz.
-The master enable and individual field switches are in the custom telemetry
-section of `include/config.h`.
+Telemetry fields and their wire types are declared once through
+`TELEMETRY_FIELD_MAP` in `include/config.h`. The current schema sends the active
+mode, signed Spin-mode RPM, and the latest XYZ output from both high-g
+accelerometers every 500 ms. Acceleration values are transmitted directly as
+floating-point m/s². A mode change forces an immediate packet, and fields not
+populated by the active mode are marked invalid.
+
+Every PlatformIO build regenerates self-contained graph, formatted-values, and
+raw-table EdgeTX screen scripts from the same field map.
+It can also be generated manually with
+`python3 scripts/generate_telemetry_lua.py`.
 
 Install and model-setup instructions for the RadioMaster Boxer are in
-[`edgetx/README.md`](edgetx/README.md). The matching screen script is
-`edgetx/SCRIPTS/TELEMETRY/BBOT.lua`.
+[`edgetx/README.md`](edgetx/README.md). The generated screen scripts are
+`BBGRPH.lua`, `BBVALS.lua`, and `BBRAW.lua`.
 
 ---
 
@@ -156,7 +166,7 @@ The firmware distributes the workload across three independent tasks scheduled b
 1. **`ControlLoop` (Main Thread)**
     *   **Priority:** High (3)
     *   **Frequency:** 200 Hz (5 ms period)
-    *   **Role:** Acts as the data aggregator. Reads inputs (`Receiver`, `IMU`), updates the `RobotState`, and invokes `modeHandler.update(robot)`. The entire hardware execution is delegated internally to the active mode. Uses `vTaskDelayUntil` for strict loop timing.
+    *   **Role:** Reads inputs (`Receiver`, `IMU`), updates `RobotState`, invokes the active mode, and schedules schema-driven telemetry. Uses `vTaskDelayUntil` for strict loop timing.
 
 2. **`CRSF_RX` (Communication Thread)**
     *   **Priority:** Medium (2)

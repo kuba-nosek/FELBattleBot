@@ -1,3 +1,5 @@
 #pragma once
 
-enum class DriveModeType { Invalid, Idle, Forward, Spin };
+#include <stdint.h>
+
+enum DriveModeType : uint8_t { Invalid, Idle, Forward, Spin };
