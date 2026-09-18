@@ -73,37 +73,6 @@ void setup() {
     //     }
     // }
 
-    // Arm motors if hardware is OK
-    // ----------------------------------------------------------------
-        // SPUŠTĚNÍ MOTORŮ A ESC
-        // ----------------------------------------------------------------
-        // 1. Nejprve držíme nulu po dobu 1,5 vteřiny pro nabootování AM32
-        // Musíme je krmit ZÁROVEŇ, jinak se kvůli 0,5s timeoutu odpojí!
-        uint32_t armStart = millis();
-        while (millis() - armStart < 1500) {
-            motorLeft.stop();
-            motorRight.stop();
-            delay(2);
-        }
-
-        // 2. Frontování příkazu pro aktivaci 3D režimu u obou motorů
-        motorLeft.sendCommand(DSHOT_CMD_3D_MODE_ON, 10);
-        motorRight.sendCommand(DSHOT_CMD_3D_MODE_ON, 10);
-        for (int i = 0; i < 15; i++) {
-            motorLeft.stop();
-            motorRight.stop();
-            delay(2);
-        }
-
-        // 3. Frontování příkazu pro aktivaci telemetrie (EDT)
-        // - zapínáme jen na levém, kde máme fyzicky dotažený obousměrný signál
-        motorLeft.sendCommand(DSHOT_CMD_EDT_ENABLE, 10);
-        for (int i = 0; i < 15; i++) {
-            motorLeft.stop();
-            motorRight.stop();
-            delay(2);
-        }
-
 
     // Spawn FreeRTOS tasks
     xTaskCreate(mainThread, "ControlLoop", 4096, NULL, 3, NULL);

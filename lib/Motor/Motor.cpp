@@ -35,7 +35,7 @@ bool Motor::init() {
     pull_cfg.intr_type = GPIO_INTR_DISABLE;
     gpio_config(&pull_cfg);
     gpio_set_level((gpio_num_t)_gpioPin, 0);
-    delay(200);
+    delay(2500);
 
     _tbit = RMT_RES_HZ / BITRATE_DSHOT600;
     _t0h = (uint16_t)((uint32_t)_tbit * 3 / 8);
@@ -43,7 +43,6 @@ bool Motor::init() {
     _telemQ8 = (uint32_t)(((uint64_t)RMT_RES_HZ * 4 * 256) / (5ull * BITRATE_DSHOT600));
     _gapMin = (uint16_t)((uint32_t)_tbit * 5 / 2);
 
-    // RX konfigurujeme jen pokud chceme telemetrii
     if (_bidirectional) {
         rmt_rx_channel_config_t rxc = {};
         rxc.gpio_num = (gpio_num_t)_gpioPin;
@@ -64,7 +63,7 @@ bool Motor::init() {
     txc.mem_block_symbols = RMT_MEM;
     txc.trans_queue_depth = 2;
     txc.flags.io_loop_back = _bidirectional;  
-    txc.flags.io_od_mode = _bidirectional;  // Pouze pro obousměrný režim
+    txc.flags.io_od_mode = _bidirectional; 
     if (rmt_new_tx_channel(&txc, &_tx) != ESP_OK) return false;
 
     rmt_copy_encoder_config_t enc = {};
@@ -79,6 +78,7 @@ bool Motor::init() {
 
     _beginUs = esp_timer_get_time();
     _escArmed = false;
+    _edtEnabled = false;
     _initialized = true;
 
     sendRaw(DSHOT_CMD_MOTOR_STOP);
@@ -171,8 +171,7 @@ void Motor::armRx() {
 void Motor::buildFrame(uint16_t value) {
     uint16_t packet = (value & 0x07FF) << 1;
     
-    // OPRAVA: DShot specifikace vyžaduje, aby speciální příkazy (1-47)
-    // měly VŽDY zapnutý telemetrický bit (nejnižší bit). Jinak je ESC ignoruje.
+    // Příkazy (1-47) vyžadují zapnutý telemetrický bit, jinak je ESC ignoruje
     if (value > 0 && value < 48) {
         packet |= 1;
     }
@@ -183,13 +182,13 @@ void Motor::buildFrame(uint16_t value) {
     }
     _frame = (packet << 4) | crc;
 
-    // ... zbytek funkce zůstává naprosto stejný ...
-    const uint8_t active = _bidirectional ? 0 : 1;
+    // OPRAVA POLARITY: AM32 VŽDY očekává invertovaný DShot (idles HIGH).
+    // Push-Pull výstup pro pravý motor to natvrdo vyžene nahoru i bez rezistoru.
     for (int i = 0; i < 16; ++i) {
         uint16_t hi = (_frame & (0x8000 >> i)) ? _t1h : _t0h;
-        _txSym[i].level0 = active;
+        _txSym[i].level0 = 0;
         _txSym[i].duration0 = hi;
-        _txSym[i].level1 = !active;
+        _txSym[i].level1 = 1;
         _txSym[i].duration1 = _tbit - hi;
     }
 }
@@ -216,21 +215,32 @@ bool Motor::sendRaw(uint16_t value) {
         fresh = (_status == DSHOT_RX_OK);
     }
 
-    if (!_escArmed && esp_timer_get_time() - _beginUs < ARM_HOLD_US) {
-        value = 0;
-    } else {
-        _escArmed = true;
-        if (_cmdRepeat) {
+    // Automatický asynchronní arming - krmí správně dlouhé nuly bez blokování
+    if (!_escArmed) {
+        if (esp_timer_get_time() - _beginUs < ARM_HOLD_US) {
+            value = DSHOT_CMD_MOTOR_STOP; 
+        } else {
+            _escArmed = true; 
+            sendCommand(DSHOT_CMD_3D_MODE_ON, 10);
             value = _cmd;
             _cmdRepeat--;
         }
+    } else if (_cmdRepeat > 0) {
+        value = _cmd;
+        _cmdRepeat--;
+    } else if (_bidirectional && !_edtEnabled) {
+        _edtEnabled = true;
+        sendCommand(DSHOT_CMD_EDT_ENABLE, 10);
+        value = _cmd;
+        _cmdRepeat--;
     }
 
     if (_bidirectional) armRx();
     buildFrame(value);
 
     rmt_transmit_config_t txc = {};
-    txc.flags.eot_level = _bidirectional ? 1 : 0;
+    // OPRAVA POLARITY: EOT (End of Transmission) musí VŽDY skončit v HIGH
+    txc.flags.eot_level = 1; 
     rmt_transmit(_tx, _enc, _txSym, sizeof(_txSym), &txc);
 
     return fresh;

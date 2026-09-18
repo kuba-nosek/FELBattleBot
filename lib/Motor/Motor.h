@@ -52,6 +52,8 @@ private:
     bool _bidirectional;
     bool _initialized;
 
+    bool _edtEnabled = false;
+
     int8_t _lastDirection;
     bool _atZero;
     uint32_t _zeroSinceMs;
