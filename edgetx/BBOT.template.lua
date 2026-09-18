@@ -293,16 +293,27 @@ local function drawFormattedValues()
   local modeNames = { [1]="IDLE", [2]="FWD", [3]="SPIN" }
   local modeText = state.values.mode == nil and "--" or modeNames[state.values.mode] or formatInteger(state.values.mode)
   lcd.drawText(0, 10, "MODE " .. modeText, SMLSIZE)
+  
+  -- Původní teoretické RPM z IMU
   lcd.drawText(LCD_W, 10, "RPM " .. formatInteger(state.values.rpm), SMLSIZE + RIGHT)
+  
+  -- Akcelerometry
   lcd.drawText(0, 22,
     "A1 " .. formatAcceleration(state.values.accel1X) .. " " ..
     formatAcceleration(state.values.accel1Y) .. " " .. formatAcceleration(state.values.accel1Z), SMLSIZE)
   lcd.drawText(0, 34,
     "A2 " .. formatAcceleration(state.values.accel2X) .. " " ..
     formatAcceleration(state.values.accel2Y) .. " " .. formatAcceleration(state.values.accel2Z), SMLSIZE)
-  lcd.drawText(0, 46, "RX " .. state.packetCount .. " DROP " .. state.droppedCount, SMLSIZE)
-  lcd.drawText(0, 56, "REJECT " .. state.rejectedCount, SMLSIZE)
-  lcd.drawText(LCD_W, 56, "m/s2", SMLSIZE + RIGHT)
+    
+  -- NOVÉ: Vykreslení ESC telemetrie (Otáčky)
+  lcd.drawText(0, 46, "ESC L " .. formatInteger(state.values.escLeftRpm) .. "  R " .. formatInteger(state.values.escRightRpm), SMLSIZE)
+  
+  -- NOVÉ: Vykreslení ESC telemetrie (Napětí a proud)
+  lcd.drawText(0, 56, "BATT " .. formatAcceleration(state.values.escLeftVolts) .. "V " .. formatAcceleration(state.values.escLeftAmps) .. "A", SMLSIZE)
+
+  -- Informace o síti jsem přesunul doprava
+  lcd.drawText(LCD_W, 46, "RX " .. state.packetCount .. " DR " .. state.droppedCount, SMLSIZE + RIGHT)
+  lcd.drawText(LCD_W, 56, "REJ " .. state.rejectedCount, SMLSIZE + RIGHT)
 end
 
 local function rawPageCount()

@@ -14,8 +14,8 @@
 using namespace RobotConfig;
 
 // --- Global hardware instances ---
-Motor motorLeft(PIN_MOTOR_L, RMT_CHANNEL_0, MOTOR_LEFT_REVERSED);
-Motor motorRight(PIN_MOTOR_R, RMT_CHANNEL_1, MOTOR_RIGHT_REVERSED);
+Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, true);   // Levý používá DShot obousměrně (s pullupem)
+Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, false); // Pravý je jen hloupý, jednosměrný Push-Pull
 
 IMU imu1(PIN_SPI_CS1, IMU1_OFFSET_X_G, IMU1_OFFSET_Y_G, IMU1_OFFSET_Z_G);
 IMU imu2(PIN_SPI_CS2, IMU2_OFFSET_X_G, IMU2_OFFSET_Y_G, IMU2_OFFSET_Z_G);
@@ -74,8 +74,36 @@ void setup() {
     // }
 
     // Arm motors if hardware is OK
-    motorLeft.arm();
-    motorRight.arm();
+    // ----------------------------------------------------------------
+        // SPUŠTĚNÍ MOTORŮ A ESC
+        // ----------------------------------------------------------------
+        // 1. Nejprve držíme nulu po dobu 1,5 vteřiny pro nabootování AM32
+        // Musíme je krmit ZÁROVEŇ, jinak se kvůli 0,5s timeoutu odpojí!
+        uint32_t armStart = millis();
+        while (millis() - armStart < 1500) {
+            motorLeft.stop();
+            motorRight.stop();
+            delay(2);
+        }
+
+        // 2. Frontování příkazu pro aktivaci 3D režimu u obou motorů
+        motorLeft.sendCommand(DSHOT_CMD_3D_MODE_ON, 10);
+        motorRight.sendCommand(DSHOT_CMD_3D_MODE_ON, 10);
+        for (int i = 0; i < 15; i++) {
+            motorLeft.stop();
+            motorRight.stop();
+            delay(2);
+        }
+
+        // 3. Frontování příkazu pro aktivaci telemetrie (EDT)
+        // - zapínáme jen na levém, kde máme fyzicky dotažený obousměrný signál
+        motorLeft.sendCommand(DSHOT_CMD_EDT_ENABLE, 10);
+        for (int i = 0; i < 15; i++) {
+            motorLeft.stop();
+            motorRight.stop();
+            delay(2);
+        }
+
 
     // Spawn FreeRTOS tasks
     xTaskCreate(mainThread, "ControlLoop", 4096, NULL, 3, NULL);
@@ -124,6 +152,11 @@ void mainThread(void* pvParameters) {
         const bool modeChanged = modeHandler.update(robot);
         IRobotMode* currentMode = modeHandler.getCurrentMode();
         currentMode->execute(robot, input);
+
+        if(robot.state.isConnected) {
+            robot.state.escLeftRpm = motorLeft.getErpm();
+            robot.state.escLeftVolts = motorLeft.getVoltage();
+        }
 
         if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {
             telemetryManager.sendTelemetry(robot, *currentMode);
