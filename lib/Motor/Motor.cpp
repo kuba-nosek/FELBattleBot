@@ -34,7 +34,7 @@ bool Motor::init() {
     pull_cfg.mode = GPIO_MODE_OUTPUT_OD;
     pull_cfg.intr_type = GPIO_INTR_DISABLE;
     gpio_config(&pull_cfg);
-    gpio_set_level((gpio_num_t)_gpioPin, 0);
+    gpio_set_level((gpio_num_t)_gpioPin, 1);
     delay(2500);
 
     _tbit = RMT_RES_HZ / BITRATE_DSHOT600;

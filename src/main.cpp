@@ -14,8 +14,8 @@
 using namespace RobotConfig;
 
 // --- Global hardware instances ---
-Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, true);   // Levý používá DShot obousměrně (s pullupem)
-Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, false); // Pravý je jen hloupý, jednosměrný Push-Pull
+Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, true);
+Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, true);
 
 IMU imu1(PIN_SPI_CS1, IMU1_OFFSET_X_G, IMU1_OFFSET_Y_G, IMU1_OFFSET_Z_G);
 IMU imu2(PIN_SPI_CS2, IMU2_OFFSET_X_G, IMU2_OFFSET_Y_G, IMU2_OFFSET_Z_G);
