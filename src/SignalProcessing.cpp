@@ -70,12 +70,8 @@ int8_t processThreeStateSwitch(uint16_t channelUs) {
 }
 
 uint8_t processSixStateSwitch(uint16_t channelUs) {
-    const uint32_t value = clampChannel(channelUs);
-    const uint32_t inputRange = RobotConfig::RC_CHANNEL_MAX - RobotConfig::RC_CHANNEL_MIN;
-    const uint32_t position = (value - RobotConfig::RC_CHANNEL_MIN) * 5U;
-
-    // Round to the nearest of the six equally spaced switch detents.
-    return static_cast<uint8_t>((position + inputRange / 2U) / inputRange);
+    const uint16_t value = clampChannel(channelUs);
+    return static_cast<uint8_t>(mapRange(value, RobotConfig::RC_CHANNEL_MIN, RobotConfig::RC_CHANNEL_MAX, 0, 5));
 }
 } // namespace
 

@@ -36,6 +36,8 @@ void LEDThread(void* pvParameters);
 void onFailsafe() {
     robot.state.requestedMode = DriveModeType::Idle;
     robot.hw.led->setIndication(LEDIndication::Failsafe);
+    robot.hw.led->setStripMode(LEDStripMode::Static);
+    robot.hw.led->setAnimation(LEDStripAnimation::Failsafe);
 }
 
 void setup() {
@@ -48,6 +50,10 @@ void setup() {
 
     // Initialize core peripherals
     ledHandler.init();
+    ledHandler.setIndication(LEDIndication::Idle);
+    ledHandler.playAnimation(LEDAnimation::Bootup);
+    ledHandler.setStripMode(LEDStripMode::Static);
+    ledHandler.setAnimation(LEDStripAnimation::Bootup);
     receiver.connect();
     receiver.onDisconnect(onFailsafe);
 
@@ -62,16 +68,18 @@ void setup() {
     bool imu1Ok = imu1.init();
     bool imu2Ok = imu2.init();
 
-    hardwareOk &= (imu1Ok && imu2Ok);
+    hardwareOk &= (imu1Ok);
 
-    // if(!hardwareOk) {
-    //     ledHandler.setIndication(LEDIndication::HardwareError);
+    if(!hardwareOk) {
+        ledHandler.setIndication(LEDIndication::HardwareError);
+        ledHandler.setStripMode(LEDStripMode::Static);
+        ledHandler.setAnimation(LEDStripAnimation::HardwareError);
 
-    //     while(true) {
-    //         ledHandler.update();
-    //         delay(10);
-    //     }
-    // }
+        while(true) {
+            ledHandler.update();
+            delay(10);
+        }
+    }
 
 
     // Spawn FreeRTOS tasks
@@ -99,6 +107,7 @@ void mainThread(void* pvParameters) {
 
     // light indication sync
     modeHandler.update(robot);
+    bool wasConnected = false;
 
     while(true) {
         robot.state.currentMs = millis();
@@ -132,6 +141,14 @@ void mainThread(void* pvParameters) {
                 robot.state.escRightVolts = motorRight.getVoltage();
             }
         }
+        if(!robot.state.isConnected) {
+            ledHandler.setIndication(LEDIndication::Failsafe);
+            ledHandler.setStripMode(LEDStripMode::Static);
+            ledHandler.setAnimation(LEDStripAnimation::Failsafe);
+        } else if(!wasConnected && !modeChanged) {
+            currentMode->init(robot);
+        }
+        wasConnected = robot.state.isConnected;
 
         if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {
             telemetryManager.sendTelemetry(robot, *currentMode);

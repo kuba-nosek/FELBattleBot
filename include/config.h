@@ -19,6 +19,22 @@ constexpr bool MOTOR_RIGHT_REVERSED = false;
 
 constexpr uint8_t PIN_LED = 9;
 
+// POV LED strip
+constexpr bool USE_LED_STRIP = true;
+constexpr uint8_t PIN_LED_STRIP = 21;
+constexpr uint16_t LED_STRIP_LED_COUNT = 14;
+constexpr uint16_t LED_STRIP_SPIN_LED_COUNT = LED_STRIP_LED_COUNT / 2;
+constexpr uint8_t LED_STRIP_SECTORS_PER_LED = 3;
+constexpr uint16_t LED_STRIP_SECTOR_COUNT = LED_STRIP_LED_COUNT * LED_STRIP_SECTORS_PER_LED;
+constexpr uint16_t LED_STRIP_REFRESH_HZ = 500;
+constexpr uint8_t LED_STRIP_BRIGHTNESS = 32;
+
+static_assert(LED_STRIP_LED_COUNT > 1, "The POV strip needs at least two LEDs");
+static_assert(LED_STRIP_LED_COUNT % 2 == 0, "The half-strip POV layout requires an even LED count");
+static_assert(LED_STRIP_SECTORS_PER_LED > 0, "The POV strip needs at least one sector per LED");
+static_assert(LED_STRIP_REFRESH_HZ > 0, "The POV strip refresh rate must be positive");
+static_assert(LED_STRIP_REFRESH_HZ <= 1000000, "The POV strip refresh interval must be at least one microsecond");
+
 // SPI Bus
 constexpr uint8_t PIN_SPI_SCK = 8;
 constexpr uint8_t PIN_SPI_MISO = 6;
@@ -94,12 +110,12 @@ constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
     X(leftStickVertical, Stick, 3)                                                                                     \
     X(leftStickHorizontal, Stick, 4)                                                                                   \
     X(leftSwitch, TwoStateSwitch, 5)                                                                                   \
-    X(rightSwitch, TwoStateSwitch, 8)                                                                                  \
     X(left3StateSwitch, ThreeStateSwitch, 6)                                                                           \
     X(right3StateSwitch, ThreeStateSwitch, 7)                                                                          \
-    X(leftPot, Potentiometer, 11)                                                                                      \
-    X(rightPot, Potentiometer, 15)                                                                                     \
-    X(sixStateSwitch, SixStateSwitch, 14)
+    X(rightSwitch, TwoStateSwitch, 8)                                                                                  \
+    X(leftPot, Potentiometer, 9)                                                                                      \
+    X(rightPot, Potentiometer, 10)                                                                                     \
+    X(sixStateSwitch, SixStateSwitch, 11)
 
 // Compile-time telemetry packet configuration.
 // Format: X(fieldName, fieldType)
