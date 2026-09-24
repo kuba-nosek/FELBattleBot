@@ -12,6 +12,14 @@ bool TelemetryManager::shouldSendTelemetry(const RobotCore& robot, bool modeChan
 
 void TelemetryManager::sendTelemetry(RobotCore& robot, const IRobotMode& activeMode) {
     BattlebotTelemetry::TelemetryData telemetry{};
+
+    // universal telemetry data
+    telemetry.escLeftRpm = robot.state.escLeftRpm;
+    telemetry.escLeftVolts = robot.state.escLeftVolts;
+
+    // (Tip: Stejným způsobem sem z tvých módů přesunout i přiřazování akcelerometrů,
+    // např. telemetry.accel1X = robot.state.imu1.xMps2, ušetříš si tak duplicitní kód v módech.)
+
     activeMode.sendTelemetry(robot, telemetry);
 
     if(robot.hw.rx->sendBattlebotTelemetry(telemetry)) {

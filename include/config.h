@@ -108,4 +108,6 @@ constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
     X(accel1Z, float)                                                                                                  \
     X(accel2X, float)                                                                                                  \
     X(accel2Y, float)                                                                                                  \
-    X(accel2Z, float)
+    X(accel2Z, float)                                                                                                  \
+    X(escLeftRpm, int32_t)                                                                                             \
+    X(escLeftVolts, float)

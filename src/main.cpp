@@ -14,8 +14,8 @@
 using namespace RobotConfig;
 
 // --- Global hardware instances ---
-Motor motorLeft(PIN_MOTOR_L, RMT_CHANNEL_0, MOTOR_LEFT_REVERSED);
-Motor motorRight(PIN_MOTOR_R, RMT_CHANNEL_1, MOTOR_RIGHT_REVERSED);
+Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, true);
+Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, true);
 
 IMU imu1(PIN_SPI_CS1, IMU1_OFFSET_X_G, IMU1_OFFSET_Y_G, IMU1_OFFSET_Z_G);
 IMU imu2(PIN_SPI_CS2, IMU2_OFFSET_X_G, IMU2_OFFSET_Y_G, IMU2_OFFSET_Z_G);
@@ -73,9 +73,6 @@ void setup() {
     //     }
     // }
 
-    // Arm motors if hardware is OK
-    motorLeft.arm();
-    motorRight.arm();
 
     // Spawn FreeRTOS tasks
     xTaskCreate(mainThread, "ControlLoop", 4096, NULL, 3, NULL);
@@ -124,6 +121,11 @@ void mainThread(void* pvParameters) {
         const bool modeChanged = modeHandler.update(robot);
         IRobotMode* currentMode = modeHandler.getCurrentMode();
         currentMode->execute(robot, input);
+
+        if(robot.state.isConnected) {
+            robot.state.escLeftRpm = motorLeft.getErpm();
+            robot.state.escLeftVolts = motorLeft.getVoltage();
+        }
 
         if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {
             telemetryManager.sendTelemetry(robot, *currentMode);

@@ -9,8 +9,8 @@ local HISTORY_SIZE = 64
 local STALE_TICKS = 100 -- getTime() uses 10 ms ticks
 local RAW_ROWS_PER_PAGE = 5
 
-local SCHEMA_KEY = "mode:uint8_t,rpm:int16_t,accel1X:float,accel1Y:float,accel1Z:float,accel2X:float,accel2Y:float,accel2Z:float"
-local PAYLOAD_SIZE = 34
+local SCHEMA_KEY = "mode:uint8_t,rpm:int16_t,accel1X:float,accel1Y:float,accel1Z:float,accel2X:float,accel2Y:float,accel2Z:float,escLeftRpm:int32_t,escLeftVolts:float"
+local PAYLOAD_SIZE = 42
 local fields = {
   { name="mode", type="uint8_t", size=1, offset=8 },
   { name="rpm", type="int16_t", size=2, offset=9 },
@@ -20,6 +20,8 @@ local fields = {
   { name="accel2X", type="float", size=4, offset=23 },
   { name="accel2Y", type="float", size=4, offset=27 },
   { name="accel2Z", type="float", size=4, offset=31 },
+  { name="escLeftRpm", type="int32_t", size=4, offset=35 },
+  { name="escLeftVolts", type="float", size=4, offset=39 },
 }
 local SCREEN = "raw"
 
@@ -305,16 +307,27 @@ local function drawFormattedValues()
   local modeNames = { [1]="IDLE", [2]="FWD", [3]="SPIN" }
   local modeText = state.values.mode == nil and "--" or modeNames[state.values.mode] or formatInteger(state.values.mode)
   lcd.drawText(0, 10, "MODE " .. modeText, SMLSIZE)
+  
+  -- Původní teoretické RPM z IMU
   lcd.drawText(LCD_W, 10, "RPM " .. formatInteger(state.values.rpm), SMLSIZE + RIGHT)
+  
+  -- Akcelerometry
   lcd.drawText(0, 22,
     "A1 " .. formatAcceleration(state.values.accel1X) .. " " ..
     formatAcceleration(state.values.accel1Y) .. " " .. formatAcceleration(state.values.accel1Z), SMLSIZE)
   lcd.drawText(0, 34,
     "A2 " .. formatAcceleration(state.values.accel2X) .. " " ..
     formatAcceleration(state.values.accel2Y) .. " " .. formatAcceleration(state.values.accel2Z), SMLSIZE)
-  lcd.drawText(0, 46, "RX " .. state.packetCount .. " DROP " .. state.droppedCount, SMLSIZE)
-  lcd.drawText(0, 56, "REJECT " .. state.rejectedCount, SMLSIZE)
-  lcd.drawText(LCD_W, 56, "m/s2", SMLSIZE + RIGHT)
+    
+  -- NOVÉ: Vykreslení ESC telemetrie (Otáčky)
+  lcd.drawText(0, 46, "ESC L " .. formatInteger(state.values.escLeftRpm) .. "  R " .. formatInteger(state.values.escRightRpm), SMLSIZE)
+  
+  -- NOVÉ: Vykreslení ESC telemetrie (Napětí a proud)
+  lcd.drawText(0, 56, "BATT " .. formatAcceleration(state.values.escLeftVolts) .. "V " .. formatAcceleration(state.values.escLeftAmps) .. "A", SMLSIZE)
+
+  -- Informace o síti jsem přesunul doprava
+  lcd.drawText(LCD_W, 46, "RX " .. state.packetCount .. " DR " .. state.droppedCount, SMLSIZE + RIGHT)
+  lcd.drawText(LCD_W, 56, "REJ " .. state.rejectedCount, SMLSIZE + RIGHT)
 end
 
 local function rawPageCount()
