@@ -8,7 +8,6 @@
 constexpr uint16_t DSHOT_CMD_MOTOR_STOP = 0;
 constexpr uint16_t DSHOT_CMD_3D_MODE_ON = 10;
 constexpr uint16_t DSHOT_CMD_EDT_ENABLE = 13;
-
 constexpr uint16_t DSHOT_REVERSE_MIN = 48;
 constexpr uint16_t DSHOT_FORWARD_MIN = 1048;
 constexpr int16_t SPEED_SCALE = 1000;
@@ -24,15 +23,12 @@ enum DShotRxStatus : uint8_t {
 
 class Motor {
 public:
-    // Přidán parametr bidirectional pro volbu jednosměrného / obousměrného režimu
-    Motor(uint8_t gpioPin, bool reversed = false, bool bidirectional = true);
+    Motor(uint8_t gpioPin, bool reversed = false, uint8_t polePairs = 7);
     ~Motor();
 
     bool init();
     
-    // Namísto blokujícího arm() budeme frontovat příkazy synchronně
     void sendCommand(uint16_t cmd, uint8_t repeat = 10);
-
     void setReversed(bool reversed);
     void resetDirectionGuard();
     void stop();
@@ -41,7 +37,7 @@ public:
     int16_t getSpeed() const;
 
     // --- Telemetrie ---
-    int32_t getErpm() const { return _erpm; }
+    int32_t getRpm() const { return _erpm / _polePairs; }
     float getVoltage() const { return _edtVolts; }
     float getCurrent() const { return _edtAmps; }
     bool isTelemetryValid() const { return _status == DSHOT_RX_OK; }
@@ -49,7 +45,7 @@ public:
 private:
     uint8_t _gpioPin;
     bool _reversed;
-    bool _bidirectional;
+    uint8_t _polePairs;
     bool _initialized;
 
     bool _edtEnabled = false;

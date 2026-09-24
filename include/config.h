@@ -44,6 +44,11 @@ constexpr uint32_t TASK_CONTROL_HZ = 200;
 constexpr uint32_t TASK_RECEIVER_HZ = 500;
 constexpr uint32_t TASK_LED_HZ = 1000;
 
+// ======================
+// MOTOR SETTINGS
+// ======================
+constexpr uint8_t MOTOR_POLE_PAIRS = 7;
+
 // ==========================================
 // Custom CRSF telemetry (EdgeTX BBOT.lua)
 // ==========================================
@@ -110,4 +115,6 @@ constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
     X(accel2Y, float)                                                                                                  \
     X(accel2Z, float)                                                                                                  \
     X(escLeftRpm, int32_t)                                                                                             \
-    X(escLeftVolts, float)
+    X(escLeftVolts, float)                                                                                             \
+    X(escRightRpm, int32_t)                                                                                             \
+    X(escRightVolts, float)                                                                                             

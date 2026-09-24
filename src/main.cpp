@@ -14,8 +14,8 @@
 using namespace RobotConfig;
 
 // --- Global hardware instances ---
-Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, true);
-Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, true);
+Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, MOTOR_POLE_PAIRS);
+Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, MOTOR_POLE_PAIRS);
 
 IMU imu1(PIN_SPI_CS1, IMU1_OFFSET_X_G, IMU1_OFFSET_Y_G, IMU1_OFFSET_Z_G);
 IMU imu2(PIN_SPI_CS2, IMU2_OFFSET_X_G, IMU2_OFFSET_Y_G, IMU2_OFFSET_Z_G);
@@ -123,8 +123,14 @@ void mainThread(void* pvParameters) {
         currentMode->execute(robot, input);
 
         if(robot.state.isConnected) {
-            robot.state.escLeftRpm = motorLeft.getErpm();
-            robot.state.escLeftVolts = motorLeft.getVoltage();
+            if(motorLeft.isTelemetryValid()) {
+                robot.state.escLeftRpm = motorLeft.getRpm();
+                robot.state.escLeftVolts = motorLeft.getVoltage();
+            }
+            if(motorRight.isTelemetryValid()) {
+                robot.state.escRightRpm = motorRight.getRpm();
+                robot.state.escRightVolts = motorRight.getVoltage();
+            }
         }
 
         if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {

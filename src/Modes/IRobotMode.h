@@ -15,9 +15,11 @@ struct RobotState {
     DriveModeType requestedMode = DriveModeType::Idle;
     IMUData imu1{};
     IMUData imu2{};
-    // --- ESC Telemetrie ---
+    // --- ESC Telemetry ---
     int32_t escLeftRpm = 0;
     float escLeftVolts = 0.0f;
+    int32_t escRightRpm = 0;
+    float escRightVolts = 0.0f;
 };
 
 struct RobotHardware {

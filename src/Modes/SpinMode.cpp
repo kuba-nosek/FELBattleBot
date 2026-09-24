@@ -61,6 +61,16 @@ bool isFlashDelayValid(float flashDelayUs) {
     return std::isfinite(flashDelayUs) && flashDelayUs >= 0.0f && flashDelayUs <= INT32_MAX;
 }
 
+int32_t getPower(int32_t rawPower, int switchPosition) {
+    if (switchPosition < 0) {
+        return rawPower / 3;           // Low power (cca 33 %)
+    } else if (switchPosition == 0) {
+        return (rawPower * 2) / 3;     // Mid power (cca 66 %)
+    } else {
+        return rawPower;               // High power (100 %)
+    }
+}
+
 MotorPowers calculateMotorPowers(int32_t power, int32_t amplitude, float headingRadians) {
     const float modulation = std::sin(headingRadians);
     const int32_t wave = static_cast<int32_t>(std::lround(static_cast<float>(amplitude) * modulation));
@@ -92,7 +102,7 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     lastUpdateUs_ = currentUs;
 
     const float deltaSeconds = static_cast<float>(deltaUs) * MICROSECONDS_TO_SECONDS;
-    const int32_t power = input.leftStickVertical;
+    const int32_t power = getPower(input.leftStickVertical, input.left3StateSwitch);
     int32_t amplitude = input.rightStickVertical;
 
     const float sensorRadiusMeters = calculateSensorRadiusMeters(input.leftPot);
@@ -152,6 +162,11 @@ void SpinMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::Telemet
     telemetry.accel2X = robot.state.imu2.xMps2;
     telemetry.accel2Y = robot.state.imu2.yMps2;
     telemetry.accel2Z = robot.state.imu2.zMps2;
+
+    telemetry.escLeftRpm = robot.state.escLeftRpm;
+    telemetry.escLeftVolts = robot.state.escLeftVolts;
+    telemetry.escRightRpm = robot.state.escRightRpm;
+    telemetry.escRightVolts = robot.state.escRightVolts;
 
     const float rpm = spinDirection_ * angularSpeedRadPerSec_ * (60.0f / TWO_PI_RADIANS);
     telemetry.rpm = static_cast<int16_t>(rpm);

@@ -5,6 +5,7 @@
 class TelemetryManager {
   public:
     bool shouldSendTelemetry(const RobotCore& robot, bool modeChanged);
+    void getRpm(RobotCore& robot);
     void sendTelemetry(RobotCore& robot, const IRobotMode& activeMode);
 
   private:

@@ -17,8 +17,8 @@ namespace {
     };
 }
 
-Motor::Motor(uint8_t gpioPin, bool reversed, bool bidirectional)
-    : _gpioPin(gpioPin), _reversed(reversed), _bidirectional(bidirectional), _initialized(false),
+Motor::Motor(uint8_t gpioPin, bool reversed, uint8_t polePairs)
+    : _gpioPin(gpioPin), _reversed(reversed), _polePairs(polePairs > 0 ? polePairs : 1), _initialized(false),
       _lastDirection(0), _atZero(true), _zeroSinceMs(0), _currentSpeed(0) {
 }
 
@@ -43,18 +43,16 @@ bool Motor::init() {
     _telemQ8 = (uint32_t)(((uint64_t)RMT_RES_HZ * 4 * 256) / (5ull * BITRATE_DSHOT600));
     _gapMin = (uint16_t)((uint32_t)_tbit * 5 / 2);
 
-    if (_bidirectional) {
-        rmt_rx_channel_config_t rxc = {};
-        rxc.gpio_num = (gpio_num_t)_gpioPin;
-        rxc.clk_src = RMT_CLK_SRC_DEFAULT;
-        rxc.resolution_hz = RMT_RES_HZ;
-        rxc.mem_block_symbols = RMT_MEM;
-        if (rmt_new_rx_channel(&rxc, &_rx) != ESP_OK) return false;
+    rmt_rx_channel_config_t rxc = {};
+    rxc.gpio_num = (gpio_num_t)_gpioPin;
+    rxc.clk_src = RMT_CLK_SRC_DEFAULT;
+    rxc.resolution_hz = RMT_RES_HZ;
+    rxc.mem_block_symbols = RMT_MEM;
+    if (rmt_new_rx_channel(&rxc, &_rx) != ESP_OK) return false;
 
-        rmt_rx_event_callbacks_t cbs = {};
-        cbs.on_recv_done = onRxDone;
-        if (rmt_rx_register_event_callbacks(_rx, &cbs, this) != ESP_OK) return false;
-    }
+    rmt_rx_event_callbacks_t cbs = {};
+    cbs.on_recv_done = onRxDone;
+    if (rmt_rx_register_event_callbacks(_rx, &cbs, this) != ESP_OK) return false;
 
     rmt_tx_channel_config_t txc = {};
     txc.gpio_num = (gpio_num_t)_gpioPin;
@@ -62,18 +60,15 @@ bool Motor::init() {
     txc.resolution_hz = RMT_RES_HZ;
     txc.mem_block_symbols = RMT_MEM;
     txc.trans_queue_depth = 2;
-    txc.flags.io_loop_back = _bidirectional;  
-    txc.flags.io_od_mode = _bidirectional; 
+    txc.flags.io_loop_back = true;  
+    txc.flags.io_od_mode = true; 
     if (rmt_new_tx_channel(&txc, &_tx) != ESP_OK) return false;
 
     rmt_copy_encoder_config_t enc = {};
     if (rmt_new_copy_encoder(&enc, &_enc) != ESP_OK) return false;
 
-    if (_bidirectional) {
-        gpio_pullup_en((gpio_num_t)_gpioPin);
-        if (rmt_enable(_rx) != ESP_OK) return false;
-    }
-
+    gpio_pullup_en((gpio_num_t)_gpioPin);
+    if (rmt_enable(_rx) != ESP_OK) return false;
     if (rmt_enable(_tx) != ESP_OK) return false;
 
     _beginUs = esp_timer_get_time();
@@ -177,13 +172,10 @@ void Motor::buildFrame(uint16_t value) {
     }
 
     uint16_t crc = (packet ^ (packet >> 4) ^ (packet >> 8)) & 0x0F;
-    if (_bidirectional) {
-        crc = (~crc) & 0x0F; // Pro obousměrný provoz invertujeme CRC jako výzvu
-    }
+    crc = (~crc) & 0x0F; // Pro obousměrný provoz invertujeme CRC jako výzvu
     _frame = (packet << 4) | crc;
 
     // OPRAVA POLARITY: AM32 VŽDY očekává invertovaný DShot (idles HIGH).
-    // Push-Pull výstup pro pravý motor to natvrdo vyžene nahoru i bez rezistoru.
     for (int i = 0; i < 16; ++i) {
         uint16_t hi = (_frame & (0x8000 >> i)) ? _t1h : _t0h;
         _txSym[i].level0 = 0;
@@ -196,7 +188,7 @@ void Motor::buildFrame(uint16_t value) {
 bool Motor::sendRaw(uint16_t value) {
     bool fresh = false;
 
-    if (_bidirectional && _rxArmed) {
+    if (_rxArmed) {
         const uint32_t budget = ((uint32_t)_tbit * 16 + ((_telemQ8 >> 8) * 21)) / (RMT_RES_HZ / 1000000) + 40 + _rxIdleNs / 1000 + 30;
         const int64_t deadline = esp_timer_get_time() + budget;
         while (!_rxDone && esp_timer_get_time() < deadline) {}
@@ -228,14 +220,14 @@ bool Motor::sendRaw(uint16_t value) {
     } else if (_cmdRepeat > 0) {
         value = _cmd;
         _cmdRepeat--;
-    } else if (_bidirectional && !_edtEnabled) {
+    } else if (!_edtEnabled) {
         _edtEnabled = true;
         sendCommand(DSHOT_CMD_EDT_ENABLE, 10);
         value = _cmd;
         _cmdRepeat--;
     }
 
-    if (_bidirectional) armRx();
+    armRx();
     buildFrame(value);
 
     rmt_transmit_config_t txc = {};

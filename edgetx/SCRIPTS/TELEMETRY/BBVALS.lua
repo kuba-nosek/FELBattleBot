@@ -9,8 +9,8 @@ local HISTORY_SIZE = 64
 local STALE_TICKS = 100 -- getTime() uses 10 ms ticks
 local RAW_ROWS_PER_PAGE = 5
 
-local SCHEMA_KEY = "mode:uint8_t,rpm:int16_t,accel1X:float,accel1Y:float,accel1Z:float,accel2X:float,accel2Y:float,accel2Z:float,escLeftRpm:int32_t,escLeftVolts:float"
-local PAYLOAD_SIZE = 42
+local SCHEMA_KEY = "mode:uint8_t,rpm:int16_t,accel1X:float,accel1Y:float,accel1Z:float,accel2X:float,accel2Y:float,accel2Z:float,escLeftRpm:int32_t,escLeftVolts:float,escRightRpm:int32_t,escRightVolts:float"
+local PAYLOAD_SIZE = 50
 local fields = {
   { name="mode", type="uint8_t", size=1, offset=8 },
   { name="rpm", type="int16_t", size=2, offset=9 },
@@ -22,6 +22,8 @@ local fields = {
   { name="accel2Z", type="float", size=4, offset=31 },
   { name="escLeftRpm", type="int32_t", size=4, offset=35 },
   { name="escLeftVolts", type="float", size=4, offset=39 },
+  { name="escRightRpm", type="int32_t", size=4, offset=43 },
+  { name="escRightVolts", type="float", size=4, offset=47 },
 }
 local SCREEN = "values"
 
