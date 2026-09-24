@@ -77,7 +77,7 @@ values are selected by the midpoint between six equally spaced RC positions.
 | CH6 | Potentiometers | Current left/right placeholder mapping (`-1000..1000`) |
 | CH7 | Left three-position switch | Power expo selection (`1 / 3 / 5`) |
 | CH8 | Right three-position switch | Mode and steering expo selection |
-| CH11 | Six-position switch | Placeholder six-state control (`0..5`) |
+| CH14 | Six-position switch | Spin-mode POV selection (`Off`, test pattern, or user images 1–4) |
 
 The processed `ReceiverInput` is passed explicitly to each drive mode's `execute`
 method. Forward mode converts its signed potentiometer inputs to `0..1000` expo
@@ -155,18 +155,23 @@ These states represent the current operating mode or health of the robot.
 The optional 14-pixel WS2812B strip is configured in `include/config.h` and uses
 GPIO 21 by default. Set `USE_LED_STRIP` to `false` to leave that GPIO untouched.
 The first implementation sends GRB data with software timing because both ESP32-C3
-RMT TX channels are occupied by the motors. A 14-pixel transfer disables interrupts
-for approximately 420–470 microseconds; the refresh rate is capped at 500 Hz and
-unchanged frames are not retransmitted.
+RMT TX channels are occupied by the motors. Static effects use all 14 LEDs. Spin
+mode uses pixels 0–6 from the outer edge toward the rotation axis and keeps pixels
+7–13 dark. Its first frame clears all 14 pixels; later frames transmit only seven,
+reducing interrupt-disabled time from approximately 420 microseconds to 210
+microseconds. The refresh rate is capped at 500 Hz and unchanged frames are not
+retransmitted.
 
 Source images live in `assets/led-strip/`. Each PlatformIO build runs
 `python3 scripts/generate_led_strip_images.py`, which reads the LED count and
 sector density from `config.h` and generates compile-time RGB arrays. The default
-14 LEDs at three sectors per LED produce 42 angular columns. A built-in test
-pattern is always generated, even when no image assets are present. See
-`assets/led-strip/README.md` for the standalone generation and check commands.
+14 LEDs at three sectors per LED produce 42 angular columns, with seven radial
+pixels in each column. A built-in test pattern is always generated, and up to four
+user images are assigned alphabetically to six-position switch positions 3–6.
+Missing positions display black. See `assets/led-strip/README.md` for the
+standalone generation and check commands.
 
-Each default 14×42 image uses 2,352 bytes of flash for its 32-bit RGB values,
+Each default 7×42 image uses 1,176 bytes of flash for its 32-bit RGB values,
 plus a small amount of generated selection code. Images are selected at runtime
 but are changed by regenerating and reflashing the firmware.
 

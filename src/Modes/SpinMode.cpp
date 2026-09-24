@@ -80,7 +80,7 @@ void SpinMode::init(RobotCore& robot) {
     robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
     robot.hw.led->setIndication(LEDIndication::Spin);
     robot.hw.led->setStripMode(LEDStripMode::Spinning);
-    robot.hw.led->setAnimation(LEDStripAnimation::TestPattern);
+    robot.hw.led->setAnimation(LEDStripAnimation::Off);
     robot.hw.led->setAngularVelocity(0.0f);
     robot.hw.led->cancelScheduledFlash();
 }
@@ -110,6 +110,7 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
 
     const float signedAngularVelocityRadPerSec = spinDirection_ * angularSpeedRadPerSec_;
     robot.hw.led->setAngularVelocity(signedAngularVelocityRadPerSec);
+    robot.hw.led->setAnimation(LEDStripImages::animationForSpinSwitchPosition(input.sixStateSwitch));
 
     if(std::isfinite(angularSpeedRadPerSec_)) updateHeading(deltaSeconds, angularSpeedRadPerSec_);
 

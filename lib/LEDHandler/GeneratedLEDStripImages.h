@@ -15,17 +15,34 @@ enum class LEDStripAnimation : uint8_t {
     LowBattery = 5,
     HardwareError = 6,
     TestPattern = 7,
-    Image = 8
+    Heart = 8,
+    Rotorama = 9
 };
 
 namespace LEDStripImages {
-constexpr uint16_t GENERATED_LED_COUNT = 14;
+constexpr uint16_t GENERATED_FULL_LED_COUNT = 14;
+constexpr uint16_t GENERATED_SPIN_LED_COUNT = 7;
 constexpr uint16_t GENERATED_SECTOR_COUNT = 42;
+constexpr uint8_t GENERATED_USER_IMAGE_COUNT = 2;
 
-static_assert(RobotConfig::LED_STRIP_LED_COUNT == GENERATED_LED_COUNT,
+static_assert(RobotConfig::LED_STRIP_LED_COUNT == GENERATED_FULL_LED_COUNT,
               "Regenerate the LED-strip images after changing LED_STRIP_LED_COUNT");
+static_assert(RobotConfig::LED_STRIP_SPIN_LED_COUNT == GENERATED_SPIN_LED_COUNT,
+              "Regenerate the LED-strip images after changing the spin LED count");
 static_assert(RobotConfig::LED_STRIP_SECTOR_COUNT == GENERATED_SECTOR_COUNT,
               "Regenerate the LED-strip images after changing the strip sector count");
+
+inline LEDStripAnimation animationForSpinSwitchPosition(uint8_t position) {
+    switch(position) {
+        case 0: return LEDStripAnimation::TestPattern;
+        case 1: return LEDStripAnimation::TestPattern;
+        case 2: return LEDStripAnimation::Heart;
+        case 3: return LEDStripAnimation::Rotorama;
+        case 4: return LEDStripAnimation::TestPattern;
+        case 5: return LEDStripAnimation::TestPattern;
+        default: return LEDStripAnimation::Off;
+    }
+}
 
 bool hasImage(LEDStripAnimation animation);
 const uint32_t* getSectorPixels(LEDStripAnimation animation, uint16_t sector);

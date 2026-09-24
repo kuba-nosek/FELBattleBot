@@ -50,7 +50,8 @@ LEDHandler::LEDHandler(uint8_t ledPin)
       _pendingFlashDurationUs(0), _pendingMinimumGapUs(0), _hasLastFlashEnd(false), _lastFlashEndUs(0),
       _stripMode(LEDStripMode::Static), _stripAnimation(LEDStripAnimation::Off), _stripAngularVelocityRadPerSec(0.0f),
       _stripModeChanged(true), _stripAnimationChanged(true), _stripAngleRadians(0.0f), _lastStripIntegrationUs(0),
-      _lastStripRefreshUs(0), _stripAnimationStartMs(0), _stripFrameSent(false), _stripPixels{}, _lastStripPixels{} {}
+      _lastStripRefreshUs(0), _stripAnimationStartMs(0), _stripFrameSent(false),
+      _lastTransmittedStripMode(LEDStripMode::Static), _stripPixels{}, _lastStripPixels{} {}
 
 void LEDHandler::init() {
     pinMode(_ledPin, OUTPUT);
@@ -326,9 +327,15 @@ void LEDHandler::updateStrip(uint32_t currentMs, uint32_t currentUs) {
     applyStripBrightness();
     if(!LEDStripMath::shouldTransmit(_stripFrameSent, stripPixelsChanged())) return;
 
-    transmitStripFrame();
+    const bool spinning = mode == LEDStripMode::Spinning;
+    const bool lastTransmissionWasSpinning = _lastTransmittedStripMode == LEDStripMode::Spinning;
+    const uint16_t pixelCount = LEDStripMath::transmissionPixelCount(
+        spinning, lastTransmissionWasSpinning, RobotConfig::LED_STRIP_LED_COUNT, RobotConfig::LED_STRIP_SPIN_LED_COUNT);
+
+    transmitStripFrame(pixelCount);
     rememberStripPixels();
     _stripFrameSent = true;
+    _lastTransmittedStripMode = mode;
 }
 
 void LEDHandler::renderStaticStrip(LEDStripAnimation animation, uint32_t elapsedMs) {
@@ -379,12 +386,11 @@ void LEDHandler::renderSpinningStrip(LEDStripAnimation animation) {
     const uint16_t sector = LEDStripMath::angleToSector(_stripAngleRadians, RobotConfig::LED_STRIP_SECTOR_COUNT);
     const uint32_t* sectorPixels = LEDStripImages::getSectorPixels(animation, sector);
 
-    if(sectorPixels == nullptr) {
-        std::fill(std::begin(_stripPixels), std::end(_stripPixels), 0);
-        return;
-    }
+    std::fill(std::begin(_stripPixels), std::end(_stripPixels), 0);
 
-    std::copy_n(sectorPixels, RobotConfig::LED_STRIP_LED_COUNT, _stripPixels);
+    if(sectorPixels == nullptr) return;
+
+    std::copy_n(sectorPixels, RobotConfig::LED_STRIP_SPIN_LED_COUNT, _stripPixels);
 }
 
 void LEDHandler::applyStripBrightness() {
@@ -401,7 +407,7 @@ void LEDHandler::rememberStripPixels() {
     std::memcpy(_lastStripPixels, _stripPixels, sizeof(_stripPixels));
 }
 
-void IRAM_ATTR LEDHandler::transmitStripFrame() {
+void IRAM_ATTR LEDHandler::transmitStripFrame(uint16_t pixelCount) {
     static_assert(RobotConfig::PIN_LED_STRIP < 32, "Software strip output only supports GPIOs 0..31");
 
     const uint32_t pinMask = 1UL << RobotConfig::PIN_LED_STRIP;
@@ -411,7 +417,8 @@ void IRAM_ATTR LEDHandler::transmitStripFrame() {
     const uint32_t bitCycles = cyclesPerMicrosecond * 125 / 100;
 
     portENTER_CRITICAL(&_stripOutputLock);
-    for(const uint32_t pixel : _stripPixels) {
+    for(uint16_t pixelIndex = 0; pixelIndex < pixelCount; ++pixelIndex) {
+        const uint32_t pixel = _stripPixels[pixelIndex];
         const uint32_t red = (pixel >> 16) & 0xFF;
         const uint32_t green = (pixel >> 8) & 0xFF;
         const uint32_t blue = pixel & 0xFF;

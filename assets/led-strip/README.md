@@ -1,13 +1,24 @@
 # POV LED-strip images
 
 Put `.png`, `.jpg`, or `.jpeg` source images in this directory. The generator
-discovers them alphabetically, samples each image across the full strip diameter,
-and compiles the result into the firmware. Transparent pixels are rendered as
-black.
+discovers up to four images alphabetically, samples each image from the outer
+edge toward the rotation axis, and compiles the result into the firmware.
+Transparent pixels are rendered as black.
 
 The filename becomes the `LEDStripAnimation` name. For example,
 `team-logo.png` becomes `LEDStripAnimation::TeamLogo`. Names must remain unique
 after punctuation and spaces are removed.
+
+In Spin mode, the six-position switch selects:
+
+| Position | Display |
+| ---: | --- |
+| 1 | Off |
+| 2 | Built-in test pattern |
+| 3–6 | User images in alphabetical filename order |
+
+If a selected user-image position is empty, the strip remains off. Adding more
+than four user images is a generation error.
 
 Regenerate the C++ files manually with:
 

@@ -24,6 +24,7 @@ ASSET_DIRECTORY = ROOT / "assets" / "led-strip"
 HEADER_PATH = ROOT / "lib" / "LEDHandler" / "GeneratedLEDStripImages.h"
 SOURCE_PATH = ROOT / "lib" / "LEDHandler" / "GeneratedLEDStripImages.cpp"
 SUPPORTED_EXTENSIONS = {".jpeg", ".jpg", ".png"}
+MAX_USER_IMAGES = 4
 FIXED_ANIMATIONS = [
     "Off",
     "Bootup",
@@ -49,9 +50,11 @@ def read_dimensions(config_path=CONFIG_PATH):
     sectors_per_led = read_integer_constant(config_path, "LED_STRIP_SECTORS_PER_LED")
     if led_count < 2:
         raise RuntimeError("LED_STRIP_LED_COUNT must be at least 2")
+    if led_count % 2 != 0:
+        raise RuntimeError("LED_STRIP_LED_COUNT must be even for the half-strip POV layout")
     if sectors_per_led < 1:
         raise RuntimeError("LED_STRIP_SECTORS_PER_LED must be at least 1")
-    return led_count, led_count * sectors_per_led
+    return led_count, led_count // 2, led_count * sectors_per_led
 
 
 def filename_to_enum(path):
@@ -71,6 +74,11 @@ def discover_images(asset_directory=ASSET_DIRECTORY):
     images = [path for path in asset_directory.iterdir() if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS]
     images.sort(key=lambda path: (path.name.casefold(), path.name))
 
+    if len(images) > MAX_USER_IMAGES:
+        raise RuntimeError(
+            f"At most {MAX_USER_IMAGES} user LED-strip images are supported; found {len(images)}"
+        )
+
     names = FIXED_ANIMATIONS.copy()
     named_images = []
     for path in images:
@@ -82,20 +90,20 @@ def discover_images(asset_directory=ASSET_DIRECTORY):
     return named_images
 
 
-def sample_image(path, led_count, sector_count):
+def sample_image(path, spin_led_count, sector_count):
     image = Image.open(path).convert("RGBA")
     width, height = image.size
     center_x = width / 2.0
     center_y = height / 2.0
-    maximum_radius_leds = (led_count - 1) / 2.0
+    maximum_radius_leds = spin_led_count - 0.5
     scale = min(center_x, center_y) / maximum_radius_leds
     sectors = []
 
     for sector in range(sector_count):
         angle = 2.0 * math.pi * sector / sector_count - math.pi / 2.0
         pixels = []
-        for led in range(led_count):
-            radius_leds = led - maximum_radius_leds
+        for led in range(spin_led_count):
+            radius_leds = maximum_radius_leds - led
             x = int(center_x + radius_leds * scale * math.cos(angle))
             y = int(center_y + radius_leds * scale * math.sin(angle))
             x = max(0, min(width - 1, x))
@@ -109,18 +117,17 @@ def sample_image(path, led_count, sector_count):
     return sectors
 
 
-def make_test_pattern(led_count, sector_count):
-    maximum_radius = (led_count - 1) / 2.0
+def make_test_pattern(spin_led_count, sector_count):
+    maximum_radius = spin_led_count - 0.5
     sectors = []
 
     for sector in range(sector_count):
         angle = 2.0 * math.pi * sector / sector_count - math.pi / 2.0
         pixels = []
-        for led in range(led_count):
-            signed_radius = (led - maximum_radius) / maximum_radius
-            x = signed_radius * math.cos(angle)
-            y = signed_radius * math.sin(angle)
-            radius = abs(signed_radius)
+        for led in range(spin_led_count):
+            radius = (maximum_radius - led) / maximum_radius
+            x = radius * math.cos(angle)
+            y = radius * math.sin(angle)
 
             if abs(x) < 0.06 or abs(y) < 0.06:
                 color = 0xFFFFFF
@@ -136,7 +143,7 @@ def make_test_pattern(led_count, sector_count):
 
 
 def render_array(name, sectors):
-    lines = [f"constexpr uint32_t {name}Pixels[GENERATED_SECTOR_COUNT][GENERATED_LED_COUNT] = {{"]
+    lines = [f"constexpr uint32_t {name}Pixels[GENERATED_SECTOR_COUNT][GENERATED_SPIN_LED_COUNT] = {{"]
     for pixels in sectors:
         values = ", ".join(f"0x{pixel:06X}" for pixel in pixels)
         lines.append(f"    {{{values}}},")
@@ -144,11 +151,24 @@ def render_array(name, sectors):
     return "\n".join(lines)
 
 
+def render_switch_cases(images):
+    cases = [
+        "        case 0: return LEDStripAnimation::TestPattern;",
+        "        case 1: return LEDStripAnimation::TestPattern;",
+    ]
+
+    for image_index in range(MAX_USER_IMAGES):
+        animation = images[image_index][0] if image_index < len(images) else "TestPattern"
+        cases.append(f"        case {image_index + 2}: return LEDStripAnimation::{animation};")
+
+    return "\n".join(cases)
+
+
 def render_files(config_path=CONFIG_PATH, asset_directory=ASSET_DIRECTORY):
-    led_count, sector_count = read_dimensions(config_path)
+    led_count, spin_led_count, sector_count = read_dimensions(config_path)
     images = discover_images(asset_directory)
-    image_data = [("TestPattern", make_test_pattern(led_count, sector_count))]
-    image_data.extend((name, sample_image(path, led_count, sector_count)) for name, path in images)
+    image_data = [("TestPattern", make_test_pattern(spin_led_count, sector_count))]
+    image_data.extend((name, sample_image(path, spin_led_count, sector_count)) for name, path in images)
     enum_names = FIXED_ANIMATIONS + [name for name, _ in images]
 
     enum_lines = ",\n    ".join(f"{name} = {index}" for index, name in enumerate(enum_names))
@@ -165,13 +185,24 @@ enum class LEDStripAnimation : uint8_t {{
 }};
 
 namespace LEDStripImages {{
-constexpr uint16_t GENERATED_LED_COUNT = {led_count};
+constexpr uint16_t GENERATED_FULL_LED_COUNT = {led_count};
+constexpr uint16_t GENERATED_SPIN_LED_COUNT = {spin_led_count};
 constexpr uint16_t GENERATED_SECTOR_COUNT = {sector_count};
+constexpr uint8_t GENERATED_USER_IMAGE_COUNT = {len(images)};
 
-static_assert(RobotConfig::LED_STRIP_LED_COUNT == GENERATED_LED_COUNT,
+static_assert(RobotConfig::LED_STRIP_LED_COUNT == GENERATED_FULL_LED_COUNT,
               \"Regenerate the LED-strip images after changing LED_STRIP_LED_COUNT\");
+static_assert(RobotConfig::LED_STRIP_SPIN_LED_COUNT == GENERATED_SPIN_LED_COUNT,
+              \"Regenerate the LED-strip images after changing the spin LED count\");
 static_assert(RobotConfig::LED_STRIP_SECTOR_COUNT == GENERATED_SECTOR_COUNT,
               \"Regenerate the LED-strip images after changing the strip sector count\");
+
+inline LEDStripAnimation animationForSpinSwitchPosition(uint8_t position) {{
+    switch(position) {{
+{render_switch_cases(images)}
+        default: return LEDStripAnimation::Off;
+    }}
+}}
 
 bool hasImage(LEDStripAnimation animation);
 const uint32_t* getSectorPixels(LEDStripAnimation animation, uint16_t sector);

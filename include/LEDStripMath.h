@@ -47,4 +47,11 @@ inline bool shouldRefresh(uint32_t currentUs, uint32_t lastRefreshUs, uint32_t i
 inline bool shouldTransmit(bool frameSent, bool pixelsChanged) {
     return !frameSent || pixelsChanged;
 }
+
+inline uint16_t transmissionPixelCount(bool spinning, bool lastTransmissionWasSpinning, uint16_t fullLedCount,
+                                       uint16_t spinLedCount) {
+    if(!spinning) return fullLedCount;
+    if(!lastTransmissionWasSpinning) return fullLedCount;
+    return spinLedCount;
+}
 } // namespace LEDStripMath

@@ -54,6 +54,25 @@ void testRefreshLimitAndFrameSuppression() {
     TEST_ASSERT_TRUE(LEDStripMath::shouldTransmit(true, true));
     TEST_ASSERT_TRUE(LEDStripMath::shouldTransmit(false, false));
 }
+
+void testSpinningTransmissionClearsFullStripBeforeUsingHalf() {
+    constexpr uint16_t FULL_LED_COUNT = 14;
+    constexpr uint16_t SPIN_LED_COUNT = 7;
+
+    TEST_ASSERT_EQUAL_UINT16(FULL_LED_COUNT,
+                             LEDStripMath::transmissionPixelCount(true, false, FULL_LED_COUNT, SPIN_LED_COUNT));
+    TEST_ASSERT_EQUAL_UINT16(SPIN_LED_COUNT,
+                             LEDStripMath::transmissionPixelCount(true, true, FULL_LED_COUNT, SPIN_LED_COUNT));
+    TEST_ASSERT_EQUAL_UINT16(FULL_LED_COUNT,
+                             LEDStripMath::transmissionPixelCount(false, true, FULL_LED_COUNT, SPIN_LED_COUNT));
+}
+
+void testAnimationChangeDoesNotResetIntegratedPhase() {
+    LEDStripMath::IntegrationState state = LEDStripMath::updateIntegration(0.0f, 0, 100000, 2.0f, false);
+    state = LEDStripMath::updateIntegration(state.angleRadians, state.lastUpdateUs, 200000, 2.0f, false);
+
+    TEST_ASSERT_FLOAT_WITHIN(FLOAT_TOLERANCE, 0.4f, state.angleRadians);
+}
 } // namespace
 
 int main(int, char**) {
@@ -65,5 +84,7 @@ int main(int, char**) {
     RUN_TEST(testZeroAndNonFiniteVelocityDoNotMoveAngle);
     RUN_TEST(testAngleMapsToConfiguredSector);
     RUN_TEST(testRefreshLimitAndFrameSuppression);
+    RUN_TEST(testSpinningTransmissionClearsFullStripBeforeUsingHalf);
+    RUN_TEST(testAnimationChangeDoesNotResetIntegratedPhase);
     return UNITY_END();
 }

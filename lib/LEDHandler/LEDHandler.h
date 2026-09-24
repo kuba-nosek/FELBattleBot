@@ -79,6 +79,7 @@ class LEDHandler {
     uint32_t _lastStripRefreshUs;
     uint32_t _stripAnimationStartMs;
     bool _stripFrameSent;
+    LEDStripMode _lastTransmittedStripMode;
     uint32_t _stripPixels[RobotConfig::LED_STRIP_LED_COUNT];
     uint32_t _lastStripPixels[RobotConfig::LED_STRIP_LED_COUNT];
 
@@ -91,5 +92,5 @@ class LEDHandler {
     void applyStripBrightness();
     bool stripPixelsChanged() const;
     void rememberStripPixels();
-    void transmitStripFrame();
+    void transmitStripFrame(uint16_t pixelCount);
 };
