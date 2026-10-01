@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <SPI.h>
+#include <WiFi.h>
+#include <ArduinoOTA.h>
 
 // Custom libraries
 #include "IMU.h"
@@ -38,6 +40,24 @@ void onFailsafe() {
     robot.hw.led->setIndication(LEDIndication::Failsafe);
     robot.hw.led->setStripMode(LEDStripMode::Static);
     robot.hw.led->setAnimation(LEDStripAnimation::Failsafe);
+}
+
+void enterOTAMode() {
+
+    robot.state.requestedMode = DriveModeType::Idle;
+
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP("MELTY-OTA", "heslo_pro_ota");
+    
+    ArduinoOTA.setHostname("meltybrain-ota");
+    ArduinoOTA.begin();
+
+    while(true) {
+        ArduinoOTA.handle();
+        ledHandler.update(); // Zajištění nepřetržitého chodu blikání LED
+        
+        vTaskDelay(pdMS_TO_TICKS(10)); 
+    }
 }
 
 void setup() {
@@ -119,6 +139,11 @@ void mainThread(void* pvParameters) {
         const ReceiverChannels channels = receiver.getChannelsSnapshot();
 
         const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
+
+        // TODO aby fungovalo (neni zatim definovany otabutton nikde)
+        if (input.otaButton) {
+            enterOTAMode();
+        }
 
         if(robot.state.isConnected) {
             robot.state.requestedMode = modeHandler.decodeMode(input.leftSwitch, input.rightSwitch);
