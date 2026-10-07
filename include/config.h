@@ -43,15 +43,15 @@ constexpr uint8_t PIN_SPI_CS1 = 4;
 constexpr uint8_t PIN_SPI_CS2 = 5;
 
 // ==========================================
-// IMU calibration [g]
+// Accelerometer calibration [g]
 // ==========================================
-constexpr float IMU1_OFFSET_X_G = 0.08f;
-constexpr float IMU1_OFFSET_Y_G = 0.57f;
-constexpr float IMU1_OFFSET_Z_G = 2.85f;
+constexpr float ACCEL1_OFFSET_X_G = 0.08f;
+constexpr float ACCEL1_OFFSET_Z_G = 2.85f;
+constexpr float ACCEL1_OFFSET_Y_G = 0.57f;
 
-constexpr float IMU2_OFFSET_X_G = -0.30f;
-constexpr float IMU2_OFFSET_Y_G = 0.15f;
-constexpr float IMU2_OFFSET_Z_G = 1.94f;
+constexpr float ACCEL2_OFFSET_X_G = -0.30f;
+constexpr float ACCEL2_OFFSET_Y_G = 0.15f;
+constexpr float ACCEL2_OFFSET_Z_G = 1.94f;
 
 // ==========================================
 // RTOS thread timing
@@ -113,7 +113,7 @@ constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
     X(left3StateSwitch, ThreeStateSwitch, 6)                                                                           \
     X(right3StateSwitch, ThreeStateSwitch, 7)                                                                          \
     X(rightSwitch, TwoStateSwitch, 8)                                                                                  \
-    X(leftPot, Potentiometer, 9)                                                                                      \
+    X(leftPot, Potentiometer, 9)                                                                                       \
     X(rightPot, Potentiometer, 10)                                                                                     \
     X(sixStateSwitch, SixStateSwitch, 11)
 
@@ -132,5 +132,6 @@ constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
     X(accel2Z, float)                                                                                                  \
     X(escLeftRpm, int32_t)                                                                                             \
     X(escLeftVolts, float)                                                                                             \
-    X(escRightRpm, int32_t)                                                                                             \
+    X(escRightRpm, int32_t)                                                                                            \
     X(escRightVolts, float)                                                                                             
+    

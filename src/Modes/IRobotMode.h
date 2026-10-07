@@ -1,7 +1,7 @@
 #pragma once
 #include "BattlebotTelemetry.h"
 #include "DriveModeType.h"
-#include "IMU.h"
+#include "IAccel.h"
 #include "LEDHandler.h"
 #include "Motor.h"
 #include "Receiver.h"
@@ -13,8 +13,8 @@ struct RobotState {
     uint32_t currentMs = 0;
     bool isConnected = false;
     DriveModeType requestedMode = DriveModeType::Idle;
-    IMUData imu1{};
-    IMUData imu2{};
+    AccelData accel1{};
+    AccelData accel2{};
     // --- ESC Telemetry ---
     int32_t escLeftRpm = 0;
     float escLeftVolts = 0.0f;
@@ -34,30 +34,14 @@ struct RobotCore {
     RobotHardware hw;
 };
 
-// ==============================================================================
-// DRIVE MODES INTERFACE
-// ==============================================================================
-// This is a "contract" that every drive mode in this robot must fulfill.
-// It contains no logic on its own, but guarantees to the ModeHandler (which switches modes)
-// that regardless of which mode is active, these methods will reliably exist.
-// This allows ModeHandler to operate generically using Polymorphism.
+
 class IRobotMode {
   public:
-    // Virtual destructor (Safety measure)
-    // Ensures that deleting a generic IRobotMode pointer correctly frees
-    // the memory of the derived concrete class (e.g., SpinMode), preventing memory leaks.
     virtual ~IRobotMode() = default;
 
-    // Pure virtual methods (marked with "= 0")
-    // The "= 0" syntax specifies that these functions have no default implementation.
-    // Any derived class MUST implement them; otherwise, the code will fail to compile.
-
-    // 1. Runs once upon switching to this mode (e.g., to update LED states)
     virtual void init(RobotCore& robot) = 0;
 
-    // 2. Called continuously from the main control loop with the latest inputs.
     virtual void execute(RobotCore& robot, const ReceiverInput& input) = 0;
 
-    // 3. Populates the fields owned by this mode for the next telemetry packet.
     virtual void sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const = 0;
 };

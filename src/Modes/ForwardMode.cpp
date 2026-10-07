@@ -102,10 +102,10 @@ void ForwardMode::execute(RobotCore& robot, const ReceiverInput& input) {
 
 void ForwardMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const {
     telemetry.mode = DriveModeType::Forward;
-    telemetry.accel1X = robot.state.imu1.xMps2;
-    telemetry.accel1Y = robot.state.imu1.yMps2;
-    telemetry.accel1Z = robot.state.imu1.zMps2;
-    telemetry.accel2X = robot.state.imu2.xMps2;
-    telemetry.accel2Y = robot.state.imu2.yMps2;
-    telemetry.accel2Z = robot.state.imu2.zMps2;
+    telemetry.accel1X = robot.state.accel1.xMps2;
+    telemetry.accel1Y = robot.state.accel1.yMps2;
+    telemetry.accel1Z = robot.state.accel1.zMps2;
+    telemetry.accel2X = robot.state.accel2.xMps2;
+    telemetry.accel2Y = robot.state.accel2.yMps2;
+    telemetry.accel2Z = robot.state.accel2.zMps2;
 }

@@ -4,7 +4,7 @@
 #include <ArduinoOTA.h>
 
 // Custom libraries
-#include "IMU.h"
+#include "H3LIS331DL.h"
 #include "LEDHandler.h"
 #include "ModeHandler.h"
 #include "Motor.h"
@@ -19,8 +19,8 @@ using namespace RobotConfig;
 Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, MOTOR_POLE_PAIRS);
 Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, MOTOR_POLE_PAIRS);
 
-IMU imu1(PIN_SPI_CS1, IMU1_OFFSET_X_G, IMU1_OFFSET_Y_G, IMU1_OFFSET_Z_G);
-IMU imu2(PIN_SPI_CS2, IMU2_OFFSET_X_G, IMU2_OFFSET_Y_G, IMU2_OFFSET_Z_G);
+H3LIS331DL accel1(PIN_SPI_CS1, ACCEL1_OFFSET_X_G, ACCEL1_OFFSET_Y_G, ACCEL1_OFFSET_Z_G);
+H3LIS331DL accel2(PIN_SPI_CS2, ACCEL2_OFFSET_X_G, ACCEL2_OFFSET_Y_G, ACCEL2_OFFSET_Z_G);
 
 Receiver receiver(PIN_CRSF_RX, PIN_CRSF_TX);
 LEDHandler ledHandler(PIN_LED);
@@ -85,10 +85,10 @@ void setup() {
     hardwareOk &= motorRight.init();
 
     // Verify IMU sensors
-    bool imu1Ok = imu1.init();
-    bool imu2Ok = imu2.init();
+    bool accel1ok = accel1.init();
+    bool accel2ok = accel2.init();
 
-    hardwareOk &= (imu1Ok);
+    hardwareOk &= (accel1ok);
 
     if(!hardwareOk) {
         ledHandler.setIndication(LEDIndication::HardwareError);
@@ -141,16 +141,18 @@ void mainThread(void* pvParameters) {
         const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
 
         // TODO aby fungovalo (neni zatim definovany otabutton nikde)
+        /*
         if (input.otaButton) {
             enterOTAMode();
         }
+        */
 
         if(robot.state.isConnected) {
             robot.state.requestedMode = modeHandler.decodeMode(input.leftSwitch, input.rightSwitch);
         }
 
-        if(imu1.isAvailable()) imu1.readData(robot.state.imu1);
-        if(imu2.isAvailable()) imu2.readData(robot.state.imu2);
+        if(accel1.isAvailable()) accel1.readData(robot.state.accel1);
+        if(accel2.isAvailable()) accel2.readData(robot.state.accel2);
 
         const bool modeChanged = modeHandler.update(robot);
         IRobotMode* currentMode = modeHandler.getCurrentMode();

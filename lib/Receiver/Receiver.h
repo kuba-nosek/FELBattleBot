@@ -15,7 +15,6 @@ struct ReceiverStats {
 
 struct ReceiverChannels {
     static constexpr size_t COUNT = 16;
-
     uint16_t channelsUs[COUNT]{};
 };
 

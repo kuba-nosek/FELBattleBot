@@ -1,4 +1,4 @@
-#include "IMU.h"
+#include "H3LIS331DL.h"
 
 #include <Arduino.h>
 #include <SPI.h>
@@ -16,11 +16,11 @@ constexpr uint8_t EXPECTED_ID = 0x32;
 constexpr float STANDARD_GRAVITY_MPS2 = 9.80665f;
 } // namespace
 
-IMU::IMU(uint8_t csPin, float offsetXG, float offsetYG, float offsetZG)
+H3LIS331DL::H3LIS331DL(uint8_t csPin, float offsetXG, float offsetYG, float offsetZG)
     : _csPin(csPin), _offsetXG(offsetXG), _offsetYG(offsetYG), _offsetZG(offsetZG), _sensitivityGPerLsb(0.049f),
       _isAvailable(false) {}
 
-bool IMU::init() {
+bool H3LIS331DL::init() {
     pinMode(_csPin, OUTPUT);
     digitalWrite(_csPin, HIGH);
 
@@ -42,11 +42,11 @@ bool IMU::init() {
     return false;
 }
 
-bool IMU::isAvailable() const {
+bool H3LIS331DL::isAvailable() const {
     return _isAvailable;
 }
 
-void IMU::writeConfig(uint8_t reg, uint8_t value) {
+void H3LIS331DL::writeConfig(uint8_t reg, uint8_t value) {
     uint8_t instruction = reg & 0x3F;
     digitalWrite(_csPin, LOW);
     SPI.transfer(instruction);
@@ -59,7 +59,7 @@ void IMU::writeConfig(uint8_t reg, uint8_t value) {
     }
 }
 
-uint8_t IMU::readRegister(uint8_t reg) {
+uint8_t H3LIS331DL::readRegister(uint8_t reg) {
     uint8_t instruction = 0x80 | (reg & 0x3F);
     digitalWrite(_csPin, LOW);
     SPI.transfer(instruction);
@@ -68,7 +68,7 @@ uint8_t IMU::readRegister(uint8_t reg) {
     return val;
 }
 
-void IMU::readMultipleRegisters(uint8_t reg, uint8_t* buffer, uint8_t len) {
+void H3LIS331DL::readMultipleRegisters(uint8_t reg, uint8_t* buffer, uint8_t len) {
     uint8_t instruction = 0xC0 | (reg & 0x3F);
     digitalWrite(_csPin, LOW);
     SPI.transfer(instruction);
@@ -78,7 +78,7 @@ void IMU::readMultipleRegisters(uint8_t reg, uint8_t* buffer, uint8_t len) {
     digitalWrite(_csPin, HIGH);
 }
 
-float IMU::getSensitivityGPerLsb(uint8_t ctrlReg4) {
+float H3LIS331DL::getSensitivityGPerLsb(uint8_t ctrlReg4) {
     // Extract FS1 and FS0 bits to determine scale
     uint8_t fs_bits = (ctrlReg4 >> 4) & 0x03;
     if(fs_bits == 0x00) return 0.049f; // +-100g
@@ -87,7 +87,8 @@ float IMU::getSensitivityGPerLsb(uint8_t ctrlReg4) {
     return 0.049f;
 }
 
-bool IMU::readData(IMUData& dataOut) {
+// TODO check if isAvailable
+bool H3LIS331DL::readData(AccelData& dataOut) {
     if(!_isAvailable) return false;
 
     uint8_t data[6];
