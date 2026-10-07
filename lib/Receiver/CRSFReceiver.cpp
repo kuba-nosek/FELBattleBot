@@ -1,4 +1,4 @@
-#include "Receiver.h"
+#include "CRSFReceiver.h"
 
 #include <Arduino.h>
 
@@ -9,7 +9,6 @@ HardwareSerial crsfSerial(1); // UART1 mapping for CRSF
 constexpr uint32_t CRSF_BAUD_RATE = 420000;
 constexpr uint32_t CRSF_FAILSAFE_TIMEOUT_MS = 500;
 
-// --- CRSF Protocol Constants ---[cite: 1, 2, 7, 8]
 constexpr uint8_t CRSF_FLIGHT_CONTROLLER_ADDRESS = 0xC8;
 constexpr uint8_t CRSF_RECEIVER_ADDRESS = 0xEC;
 constexpr uint8_t CRSF_TRANSMITTER_ADDRESS = 0xEE;
@@ -45,7 +44,7 @@ uint16_t rawToMicroseconds(const uint16_t raw) {
 }
 } // namespace
 
-Receiver::Receiver(uint8_t rxPin, uint8_t txPin)
+CRSFReceiver::CRSFReceiver(uint8_t rxPin, uint8_t txPin)
     : _rxPin(rxPin), _txPin(txPin), _lastValidFrameMs(0), _lastTelemetryMs(0), _telemetrySequence(0),
       _connected(false), _disconnectCallback(nullptr) {
     _position = 0;
@@ -55,19 +54,19 @@ Receiver::Receiver(uint8_t rxPin, uint8_t txPin)
     }
 }
 
-void Receiver::connect() {
+void CRSFReceiver::connect() {
     crsfSerial.begin(CRSF_BAUD_RATE, SERIAL_8N1, _rxPin, _txPin);
 }
 
-void Receiver::onDisconnect(DisconnectCallback callback) {
+void CRSFReceiver::onDisconnect(DisconnectCallback callback) {
     _disconnectCallback = callback;
 }
 
-bool Receiver::isConnected() const {
+bool CRSFReceiver::isConnected() const {
     return _connected;
 }
 
-ReceiverChannels Receiver::getChannelsSnapshot() const {
+ReceiverChannels CRSFReceiver::getChannelsSnapshot() const {
     ReceiverChannels snapshot{};
 
     portENTER_CRITICAL(&_channelsMux);
@@ -79,11 +78,11 @@ ReceiverChannels Receiver::getChannelsSnapshot() const {
     return snapshot;
 }
 
-ReceiverStats Receiver::getStatistics() const {
+ReceiverStats CRSFReceiver::getStatistics() const {
     return _stats;
 }
 
-TelemetryTxStats Receiver::getTelemetryTxStats() const {
+TelemetryTxStats CRSFReceiver::getTelemetryTxStats() const {
     return _telemetryTxStats;
 }
 
@@ -91,7 +90,7 @@ TelemetryTxStats Receiver::getTelemetryTxStats() const {
 // CONTINUOUS POLLING & FAILSAFE
 // ====================================================================
 
-void Receiver::update() {
+void CRSFReceiver::update() {
     // Process incoming serial buffer
     size_t bytesProcessed = 0;
     while(crsfSerial.available() > 0 && bytesProcessed < 256) {
@@ -112,7 +111,7 @@ void Receiver::update() {
 // CRSF FRAME PARSER STATE MACHINE
 // ====================================================================
 
-void Receiver::processByte(uint8_t byte) {
+void CRSFReceiver::processByte(uint8_t byte) {
     // 1. Sync & Device Address[cite: 1]
     if(_position == 0) {
         if(isValidAddress(byte)) {
@@ -186,7 +185,7 @@ void Receiver::processByte(uint8_t byte) {
 // TELEMETRY TRANSMISSION
 // ====================================================================
 
-void Receiver::sendTelemetry(const char* statusText, uint32_t currentMs) {
+void CRSFReceiver::sendTelemetry(const char* statusText, uint32_t currentMs) {
     // Rate limit to 2 Hz to prevent bandwidth saturation
     if(currentMs - _lastTelemetryMs < 500) return;
 
@@ -216,7 +215,7 @@ void Receiver::sendTelemetry(const char* statusText, uint32_t currentMs) {
     }
 }
 
-bool Receiver::sendBattlebotTelemetry(const BattlebotTelemetry::TelemetryData& telemetry) {
+bool CRSFReceiver::sendBattlebotTelemetry(const BattlebotTelemetry::TelemetryData& telemetry) {
     if(!_connected) {
         return false;
     }

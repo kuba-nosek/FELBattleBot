@@ -4,7 +4,8 @@
 #include "IAccel.h"
 #include "LEDHandler.h"
 #include "Motor.h"
-#include "Receiver.h"
+#include "IReceiver.h"
+#include "ITelemetryLink.h"
 #include "ReceiverInput.h"
 
 #include <stdint.h>
@@ -23,10 +24,11 @@ struct RobotState {
 };
 
 struct RobotHardware {
-    Motor* leftMotor;
-    Motor* rightMotor;
-    LEDHandler* led;
-    Receiver* rx;
+    Motor* leftMotor = nullptr;
+    Motor* rightMotor = nullptr;
+    LEDHandler* led = nullptr;
+    IReceiver* rx = nullptr;
+    ITelemetryLink* telemetryLink = nullptr;
 };
 
 struct RobotCore {

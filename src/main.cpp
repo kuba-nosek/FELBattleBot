@@ -5,10 +5,10 @@
 
 // Custom libraries
 #include "H3LIS331DL.h"
+#include "CRSFReceiver.h"
 #include "LEDHandler.h"
 #include "ModeHandler.h"
 #include "Motor.h"
-#include "Receiver.h"
 #include "SignalProcessing.h"
 #include "TelemetryManager.h"
 #include "config.h"
@@ -22,7 +22,7 @@ Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, MOTOR_POLE_PAIRS);
 H3LIS331DL accel1(PIN_SPI_CS1, ACCEL1_OFFSET_X_G, ACCEL1_OFFSET_Y_G, ACCEL1_OFFSET_Z_G);
 H3LIS331DL accel2(PIN_SPI_CS2, ACCEL2_OFFSET_X_G, ACCEL2_OFFSET_Y_G, ACCEL2_OFFSET_Z_G);
 
-Receiver receiver(PIN_CRSF_RX, PIN_CRSF_TX);
+CRSFReceiver receiver(PIN_CRSF_RX, PIN_CRSF_TX);
 LEDHandler ledHandler(PIN_LED);
 ModeHandler modeHandler;
 TelemetryManager telemetryManager;
@@ -121,6 +121,7 @@ void mainThread(void* pvParameters) {
     robot.hw.rightMotor = &motorRight;
     robot.hw.led = &ledHandler;
     robot.hw.rx = &receiver;
+    robot.hw.telemetryLink = &receiver;
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_CONTROL_HZ);
