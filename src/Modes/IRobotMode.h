@@ -1,11 +1,12 @@
 #pragma once
-#include "BattlebotTelemetry.h"
-#include "DriveModeType.h"
 #include "IAccel.h"
-#include "LEDHandler.h"
-#include "Motor.h"
 #include "IReceiver.h"
 #include "ITelemetryLink.h"
+#include "IndicatorLED.h"
+#include "POVDisplay.h"
+#include "BattlebotTelemetry.h"
+#include "DriveModeType.h"
+#include "Motor.h"
 #include "ReceiverInput.h"
 
 #include <stdint.h>
@@ -26,9 +27,10 @@ struct RobotState {
 struct RobotHardware {
     Motor* leftMotor = nullptr;
     Motor* rightMotor = nullptr;
-    LEDHandler* led = nullptr;
     IReceiver* rx = nullptr;
     ITelemetryLink* telemetryLink = nullptr;
+    IndicatorLED* indicator = nullptr;
+    POVDisplay* povDisplay = nullptr;
 };
 
 struct RobotCore {

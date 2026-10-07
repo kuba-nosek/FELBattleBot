@@ -21,8 +21,8 @@ except ImportError:
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "include" / "config.h"
 ASSET_DIRECTORY = ROOT / "assets" / "led-strip"
-HEADER_PATH = ROOT / "lib" / "LEDHandler" / "GeneratedLEDStripImages.h"
-SOURCE_PATH = ROOT / "lib" / "LEDHandler" / "GeneratedLEDStripImages.cpp"
+HEADER_PATH = ROOT / "lib" / "POVDisplay" / "GeneratedLEDStripImages.h"
+SOURCE_PATH = ROOT / "lib" / "POVDisplay" / "GeneratedLEDStripImages.cpp"
 SUPPORTED_EXTENSIONS = {".jpeg", ".jpg", ".png"}
 MAX_USER_IMAGES = 4
 FIXED_ANIMATIONS = [

@@ -3,10 +3,10 @@
 #include <WiFi.h>
 #include <ArduinoOTA.h>
 
-// Custom libraries
 #include "H3LIS331DL.h"
 #include "CRSFReceiver.h"
-#include "LEDHandler.h"
+#include "IndicatorLED.h"
+#include "POVDisplay.h"
 #include "ModeHandler.h"
 #include "Motor.h"
 #include "SignalProcessing.h"
@@ -23,7 +23,10 @@ H3LIS331DL accel1(PIN_SPI_CS1, ACCEL1_OFFSET_X_G, ACCEL1_OFFSET_Y_G, ACCEL1_OFFS
 H3LIS331DL accel2(PIN_SPI_CS2, ACCEL2_OFFSET_X_G, ACCEL2_OFFSET_Y_G, ACCEL2_OFFSET_Z_G);
 
 CRSFReceiver receiver(PIN_CRSF_RX, PIN_CRSF_TX);
-LEDHandler ledHandler(PIN_LED);
+
+IndicatorLED indicator(PIN_LED);
+POVDisplay povDisplay(PIN_LED_STRIP);
+
 ModeHandler modeHandler;
 TelemetryManager telemetryManager;
 
@@ -37,13 +40,17 @@ void LEDThread(void* pvParameters);
 // --- Safety failsafe callback ---
 void onFailsafe() {
     robot.state.requestedMode = DriveModeType::Idle;
-    robot.hw.led->setIndication(LEDIndication::Failsafe);
-    robot.hw.led->setStripMode(LEDStripMode::Static);
-    robot.hw.led->setAnimation(LEDStripAnimation::Failsafe);
+    
+    if (robot.hw.indicator) {
+        robot.hw.indicator->setIndication(LEDIndication::Failsafe);
+    }
+    if (robot.hw.povDisplay) {
+        robot.hw.povDisplay->setMode(POVDisplayMode::Static);
+        robot.hw.povDisplay->setAnimation(LEDStripAnimation::Failsafe);
+    }
 }
 
 void enterOTAMode() {
-
     robot.state.requestedMode = DriveModeType::Idle;
 
     WiFi.mode(WIFI_AP);
@@ -54,7 +61,8 @@ void enterOTAMode() {
 
     while(true) {
         ArduinoOTA.handle();
-        ledHandler.update(); // Zajištění nepřetržitého chodu blikání LED
+        
+        indicator.update(); 
         
         vTaskDelay(pdMS_TO_TICKS(10)); 
     }
@@ -62,18 +70,20 @@ void enterOTAMode() {
 
 void setup() {
     Serial.begin(115200);
-    delay(2000);
+    delay(1000);
 
-    // Initialize SPI for IMUs
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
     SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE0));
 
-    // Initialize core peripherals
-    ledHandler.init();
-    ledHandler.setIndication(LEDIndication::Idle);
-    ledHandler.playAnimation(LEDAnimation::Bootup);
-    ledHandler.setStripMode(LEDStripMode::Static);
-    ledHandler.setAnimation(LEDStripAnimation::Bootup);
+    indicator.init();
+    povDisplay.init();
+    
+    indicator.setIndication(LEDIndication::Idle);
+    indicator.playAnimation(LEDAnimation::Bootup);
+    
+    povDisplay.setMode(POVDisplayMode::Static);
+    povDisplay.setAnimation(LEDStripAnimation::Bootup);
+
     receiver.connect();
     receiver.onDisconnect(onFailsafe);
 
@@ -91,16 +101,23 @@ void setup() {
     hardwareOk &= (accel1ok);
 
     if(!hardwareOk) {
-        ledHandler.setIndication(LEDIndication::HardwareError);
-        ledHandler.setStripMode(LEDStripMode::Static);
-        ledHandler.setAnimation(LEDStripAnimation::HardwareError);
+        indicator.setIndication(LEDIndication::HardwareError);
+        povDisplay.setMode(POVDisplayMode::Static);
+        povDisplay.setAnimation(LEDStripAnimation::HardwareError);
 
         while(true) {
-            ledHandler.update();
+            indicator.update();
+            povDisplay.update();
             delay(10);
         }
     }
 
+    robot.hw.leftMotor = &motorLeft;
+    robot.hw.rightMotor = &motorRight;
+    robot.hw.rx = &receiver;
+    robot.hw.telemetryLink = &receiver;
+    robot.hw.indicator = &indicator;
+    robot.hw.povDisplay = &povDisplay;
 
     // Spawn FreeRTOS tasks
     xTaskCreate(mainThread, "ControlLoop", 4096, NULL, 3, NULL);
@@ -117,12 +134,6 @@ void loop() {
 // ====================================================================
 
 void mainThread(void* pvParameters) {
-    robot.hw.leftMotor = &motorLeft;
-    robot.hw.rightMotor = &motorRight;
-    robot.hw.led = &ledHandler;
-    robot.hw.rx = &receiver;
-    robot.hw.telemetryLink = &receiver;
-
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_CONTROL_HZ);
 
@@ -136,7 +147,6 @@ void mainThread(void* pvParameters) {
         robot.state.isConnected = receiver.isConnected();
 
         // Capture one coherent frame so processing cannot mix channel values
-        // while the receiver task publishes the next CRSF frame.
         const ReceiverChannels channels = receiver.getChannelsSnapshot();
 
         const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
@@ -170,9 +180,10 @@ void mainThread(void* pvParameters) {
             }
         }
         if(!robot.state.isConnected) {
-            ledHandler.setIndication(LEDIndication::Failsafe);
-            ledHandler.setStripMode(LEDStripMode::Static);
-            ledHandler.setAnimation(LEDStripAnimation::Failsafe);
+            // Signalizace ztráty spojení v ControlLoop
+            if (robot.hw.indicator) {
+                robot.hw.indicator->setIndication(LEDIndication::Failsafe);
+            }
         } else if(!wasConnected && !modeChanged) {
             currentMode->init(robot);
         }
@@ -205,7 +216,8 @@ void LEDThread(void* pvParameters) {
     const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_LED_HZ);
 
     while(true) {
-        ledHandler.update();
+        if (robot.hw.indicator) robot.hw.indicator->update();
+        if (robot.hw.povDisplay) robot.hw.povDisplay->update();
         vTaskDelay(taskPeriod);
     }
 }
