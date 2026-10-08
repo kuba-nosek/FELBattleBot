@@ -15,7 +15,7 @@ constexpr uint8_t PIN_MOTOR_L = 3;
 constexpr uint8_t PIN_MOTOR_R = 2;
 
 constexpr bool MOTOR_LEFT_REVERSED = false;
-constexpr bool MOTOR_RIGHT_REVERSED = false;
+constexpr bool MOTOR_RIGHT_REVERSED = true;
 
 constexpr uint8_t PIN_LED = 9;
 
@@ -115,7 +115,8 @@ constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
     X(rightSwitch, TwoStateSwitch, 8)                                                                                  \
     X(leftPot, Potentiometer, 9)                                                                                       \
     X(rightPot, Potentiometer, 10)                                                                                     \
-    X(sixStateSwitch, SixStateSwitch, 11)
+    X(sixStateSwitch, SixStateSwitch, 11)                                                                              \
+    X(leftShoulderSwitch, TwoStateSwitch, 12)
 
 // Compile-time telemetry packet configuration.
 // Format: X(fieldName, fieldType)

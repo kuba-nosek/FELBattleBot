@@ -53,7 +53,11 @@ void onFailsafe() {
 void enterOTAMode() {
     robot.state.requestedMode = DriveModeType::Idle;
 
+    robot.hw.indicator->setIndication(LEDIndication::OTAupdate);
+
     WiFi.mode(WIFI_AP);
+    WiFi.setTxPower(WIFI_POWER_13dBm); 
+
     WiFi.softAP("MELTY-OTA", "heslo_pro_ota");
     
     ArduinoOTA.setHostname("meltybrain-ota");
@@ -62,15 +66,28 @@ void enterOTAMode() {
     while(true) {
         ArduinoOTA.handle();
         
-        indicator.update(); 
-        
+        if (robot.hw.indicator) robot.hw.indicator->update();
+
+        if (receiver.isConnected()) {
+            const ReceiverChannels channels = receiver.getChannelsSnapshot();
+            const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
+            
+            if (!input.leftShoulderSwitch) {
+                ESP.restart();
+            }
+        } else {
+            ESP.restart();
+        }   
         vTaskDelay(pdMS_TO_TICKS(10)); 
     }
 }
 
+
 void setup() {
     Serial.begin(115200);
     delay(1000);
+
+    WiFi.mode(WIFI_OFF);
 
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
     SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE0));
@@ -120,7 +137,7 @@ void setup() {
     robot.hw.povDisplay = &povDisplay;
 
     // Spawn FreeRTOS tasks
-    xTaskCreate(mainThread, "ControlLoop", 4096, NULL, 3, NULL);
+    xTaskCreate(mainThread, "ControlLoop", 8192, NULL, 3, NULL);
     xTaskCreate(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL);
     xTaskCreate(LEDThread, "LED_Control", 2048, NULL, 1, NULL);
 }
@@ -151,15 +168,11 @@ void mainThread(void* pvParameters) {
 
         const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
 
-        // TODO aby fungovalo (neni zatim definovany otabutton nikde)
-        /*
-        if (input.otaButton) {
-            enterOTAMode();
-        }
-        */
-
         if(robot.state.isConnected) {
             robot.state.requestedMode = modeHandler.decodeMode(input.leftSwitch, input.rightSwitch);
+            if(robot.state.requestedMode == DriveModeType::Idle && input.leftShoulderSwitch) {
+                enterOTAMode();
+            }
         }
 
         if(accel1.isAvailable()) accel1.readData(robot.state.accel1);

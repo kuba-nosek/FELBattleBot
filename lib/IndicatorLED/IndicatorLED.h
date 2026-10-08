@@ -3,7 +3,7 @@
 #include <freertos/FreeRTOS.h>
 #include <stdint.h>
 
-enum class LEDIndication : uint8_t { Off = 0, Idle, Forward, Spin, Failsafe, LowBattery, HardwareError };
+enum class LEDIndication : uint8_t { Off = 0, Idle, Forward, Spin, Failsafe, LowBattery, HardwareError, OTAupdate };
 enum class LEDAnimation : uint8_t { None = 0, Bootup, ModeChanged, ErrorAlert, TelemetrySent };
 
 class IndicatorLED {

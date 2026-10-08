@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <hal/cpu_hal.h>
+#include "esp_cpu.h"
 #include <iterator>
 #include <soc/gpio_reg.h>
 #include <soc/soc.h>
@@ -199,11 +199,11 @@ void IRAM_ATTR POVDisplay::transmitFrame(uint16_t pixelCount) {
 
         for(int8_t bit = 23; bit >= 0; --bit) {
             const uint32_t highCycles = grb & (1UL << bit) ? oneHighCycles : zeroHighCycles;
-            const uint32_t startCycle = cpu_hal_get_cycle_count();
+            const uint32_t startCycle = esp_cpu_get_cycle_count();
             REG_WRITE(GPIO_OUT_W1TS_REG, pinMask);
-            while(cpu_hal_get_cycle_count() - startCycle < highCycles) {}
+            while(esp_cpu_get_cycle_count() - startCycle < highCycles) {}
             REG_WRITE(GPIO_OUT_W1TC_REG, pinMask);
-            while(cpu_hal_get_cycle_count() - startCycle < bitCycles) {}
+            while(esp_cpu_get_cycle_count() - startCycle < bitCycles) {}
         }
     }
     portEXIT_CRITICAL(&_outputLock);

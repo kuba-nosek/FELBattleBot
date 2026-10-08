@@ -188,6 +188,9 @@ void IndicatorLED::update() {
             case LEDIndication::LowBattery:
                 shouldLight = (currentMs % 1000) < 100;
                 break;
+            case LEDIndication::OTAupdate:
+                shouldLight = (currentMs % 200) < 100;
+                break;
             default:
                 break;
         }
