@@ -1,4 +1,4 @@
-#include "Motor.h"
+#include "AM32Motor.h"
 #include <driver/gpio.h>
 #include <esp_timer.h>
 
@@ -17,18 +17,18 @@ namespace {
     };
 }
 
-Motor::Motor(uint8_t gpioPin, bool reversed, uint8_t polePairs)
+AM32Motor::AM32Motor(uint8_t gpioPin, bool reversed, uint8_t polePairs)
     : _gpioPin(gpioPin), _reversed(reversed), _polePairs(polePairs > 0 ? polePairs : 1), _initialized(false),
       _lastDirection(0), _atZero(true), _zeroSinceMs(0), _currentSpeed(0) {
 }
 
-Motor::~Motor() {
+AM32Motor::~AM32Motor() {
     if (_rx) { rmt_disable(_rx); rmt_del_channel(_rx); }
     if (_tx) { rmt_disable(_tx); rmt_del_channel(_tx); }
     if (_enc) { rmt_del_encoder(_enc); }
 }
 
-bool Motor::init() {
+bool AM32Motor::init() {
     gpio_config_t pull_cfg = {};
     pull_cfg.pin_bit_mask = 1ULL << _gpioPin;
     pull_cfg.mode = GPIO_MODE_OUTPUT_OD;
@@ -80,20 +80,20 @@ bool Motor::init() {
     return true;
 }
 
-void Motor::setReversed(bool reversed) { _reversed = reversed; }
+void AM32Motor::setReversed(bool reversed) { _reversed = reversed; }
 
-void Motor::resetDirectionGuard() {
+void AM32Motor::resetDirectionGuard() {
     _lastDirection = 0;
     _atZero = true;
     _zeroSinceMs = 0;
 }
 
-void Motor::stop() {
-    setSpeed(0, millis(), false);
+void AM32Motor::stop() {
+    setSpeed(0, millis());
 }
 
-bool Motor::setSpeed(int16_t speed, uint32_t currentMs, bool requestTelemetry) {
-    if(!_initialized) return false;
+void AM32Motor::setSpeed(int16_t speed, uint32_t currentMs) {
+    if(!_initialized) return;
 
     int16_t targetSpeed = _reversed ? -speed : speed;
 
@@ -137,25 +137,23 @@ bool Motor::setSpeed(int16_t speed, uint32_t currentMs, bool requestTelemetry) {
     if(hasTelemetry || dshotValue == DSHOT_CMD_MOTOR_STOP) {
         _currentSpeed = _reversed ? -targetSpeed : targetSpeed;
     }
-
-    return hasTelemetry;
 }
 
-int16_t Motor::getSpeed() const { return _currentSpeed; }
+int16_t AM32Motor::getSpeed() const { return _currentSpeed; }
 
-void Motor::sendCommand(uint16_t cmd, uint8_t repeat) {
+void AM32Motor::sendCommand(uint16_t cmd, uint8_t repeat) {
     _cmd = cmd;
     _cmdRepeat = repeat ? repeat : 1;
 }
 
-bool Motor::onRxDone(rmt_channel_handle_t, const rmt_rx_done_event_data_t *ev, void *ctx) {
-    Motor *self = (Motor *)ctx;
+bool AM32Motor::onRxDone(rmt_channel_handle_t, const rmt_rx_done_event_data_t *ev, void *ctx) {
+    AM32Motor *self = (AM32Motor *)ctx;
     self->_rxCount = ev->num_symbols;
     self->_rxDone = true;
     return false;
 }
 
-void Motor::armRx() {
+void AM32Motor::armRx() {
     rmt_receive_config_t cfg = {};
     cfg.signal_range_min_ns = 100;
     cfg.signal_range_max_ns = _rxIdleNs;
@@ -163,19 +161,17 @@ void Motor::armRx() {
     _rxArmed = (rmt_receive(_rx, _rxBuf, sizeof(_rxBuf), &cfg) == ESP_OK);
 }
 
-void Motor::buildFrame(uint16_t value) {
+void AM32Motor::buildFrame(uint16_t value) {
     uint16_t packet = (value & 0x07FF) << 1;
     
-    // Příkazy (1-47) vyžadují zapnutý telemetrický bit, jinak je ESC ignoruje
     if (value > 0 && value < 48) {
         packet |= 1;
     }
 
     uint16_t crc = (packet ^ (packet >> 4) ^ (packet >> 8)) & 0x0F;
-    crc = (~crc) & 0x0F; // Pro obousměrný provoz invertujeme CRC jako výzvu
+    crc = (~crc) & 0x0F;
     _frame = (packet << 4) | crc;
 
-    // OPRAVA POLARITY: AM32 VŽDY očekává invertovaný DShot (idles HIGH).
     for (int i = 0; i < 16; ++i) {
         uint16_t hi = (_frame & (0x8000 >> i)) ? _t1h : _t0h;
         _txSym[i].level0 = 0;
@@ -185,7 +181,7 @@ void Motor::buildFrame(uint16_t value) {
     }
 }
 
-bool Motor::sendRaw(uint16_t value) {
+bool AM32Motor::sendRaw(uint16_t value) {
     bool fresh = false;
 
     if (_rxArmed) {
@@ -207,7 +203,6 @@ bool Motor::sendRaw(uint16_t value) {
         fresh = (_status == DSHOT_RX_OK);
     }
 
-    // Automatický asynchronní arming - krmí správně dlouhé nuly bez blokování
     if (!_escArmed) {
         if (esp_timer_get_time() - _beginUs < ARM_HOLD_US) {
             value = DSHOT_CMD_MOTOR_STOP; 
@@ -231,14 +226,13 @@ bool Motor::sendRaw(uint16_t value) {
     buildFrame(value);
 
     rmt_transmit_config_t txc = {};
-    // OPRAVA POLARITY: EOT (End of Transmission) musí VŽDY skončit v HIGH
     txc.flags.eot_level = 1; 
     rmt_transmit(_tx, _enc, _txSym, sizeof(_txSym), &txc);
 
     return fresh;
 }
 
-DShotRxStatus Motor::decode(size_t nsym) {
+DShotRxStatus AM32Motor::decode(size_t nsym) {
     const size_t np = nsym * 2;
     if (np == 0) return DSHOT_RX_NO_REPLY;
 
@@ -296,7 +290,7 @@ DShotRxStatus Motor::decode(size_t nsym) {
     return DSHOT_RX_OK;
 }
 
-void Motor::apply(uint16_t data12) {
+void AM32Motor::apply(uint16_t data12) {
     const uint8_t type = data12 >> 8;
     if (type != 0 && (type & 1) == 0) {
         const uint8_t val = data12 & 0xFF;

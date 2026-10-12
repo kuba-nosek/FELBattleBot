@@ -8,7 +8,7 @@
 #include "IndicatorLED.h"
 #include "POVDisplay.h"
 #include "ModeHandler.h"
-#include "Motor.h"
+#include "AM32Motor.h"
 #include "SignalProcessing.h"
 #include "TelemetryManager.h"
 #include "config.h"
@@ -16,8 +16,8 @@
 using namespace RobotConfig;
 
 // --- Global hardware instances ---
-Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, MOTOR_POLE_PAIRS);
-Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, MOTOR_POLE_PAIRS);
+AM32Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, MOTOR_POLE_PAIRS);
+AM32Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, MOTOR_POLE_PAIRS);
 
 H3LIS331DL accel1(PIN_SPI_CS1, ACCEL1_OFFSET_X_G, ACCEL1_OFFSET_Y_G, ACCEL1_OFFSET_Z_G);
 H3LIS331DL accel2(PIN_SPI_CS2, ACCEL2_OFFSET_X_G, ACCEL2_OFFSET_Y_G, ACCEL2_OFFSET_Z_G);
@@ -165,7 +165,6 @@ void setup() {
     robot.hw.leftMotor = &motorLeft;
     robot.hw.rightMotor = &motorRight;
     robot.hw.rx = &receiver;
-    robot.hw.telemetryLink = &receiver;
     robot.hw.indicator = &indicator;
     robot.hw.povDisplay = &povDisplay;
 
@@ -235,9 +234,10 @@ void mainThread(void* pvParameters) {
         }
         wasConnected = robot.state.isConnected;
 
-        if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {
-            telemetryManager.sendTelemetry(robot, *currentMode);
-        }
+     if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {
+         telemetryManager.sendTelemetry(robot, *currentMode, receiver); 
+     }
+
 
         vTaskDelayUntil(&xLastWakeTime, taskPeriod);
     }

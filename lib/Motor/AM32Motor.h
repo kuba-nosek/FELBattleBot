@@ -1,5 +1,6 @@
 #pragma once
 
+#include "IMotor.h"
 #include <Arduino.h>
 #include <driver/rmt_rx.h>
 #include <driver/rmt_tx.h>
@@ -21,22 +22,23 @@ enum DShotRxStatus : uint8_t {
     DSHOT_RX_BAD_CRC
 };
 
-class Motor {
+class AM32Motor : public IMotor {
 public:
-    Motor(uint8_t gpioPin, bool reversed = false, uint8_t polePairs = 7);
-    ~Motor();
+    AM32Motor(uint8_t gpioPin, bool reversed = false, uint8_t polePairs = 7);
+    ~AM32Motor() override;
 
-    bool init();
-    
+    // --- IMotor Interface ---
+    bool init() override;
+    void setReversed(bool reversed) override;
+    void resetDirectionGuard() override;
+    void stop() override;
+    void setSpeed(int16_t speed, uint32_t currentMs) override;
+
+    // --- AM32 Specific Methods ---
     void sendCommand(uint16_t cmd, uint8_t repeat = 10);
-    void setReversed(bool reversed);
-    void resetDirectionGuard();
-    void stop();
-    bool setSpeed(int16_t speed, uint32_t currentMs, bool requestTelemetry = true);
-    
     int16_t getSpeed() const;
 
-    // --- Telemetrie ---
+    // --- Telemetry Methods ---
     int32_t getRpm() const { return _erpm / _polePairs; }
     float getVoltage() const { return _edtVolts; }
     float getCurrent() const { return _edtAmps; }

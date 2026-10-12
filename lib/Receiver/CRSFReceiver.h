@@ -1,13 +1,25 @@
 #pragma once
+
 #include "BattlebotTelemetry.h"
 #include "IReceiver.h"
-#include "ITelemetryLink.h"
 
 #include <freertos/FreeRTOS.h>
 #include <stddef.h>
 #include <stdint.h>
 
-class CRSFReceiver : public IReceiver, public ITelemetryLink {
+// Statistiky přesunuty z původního rozhraní
+struct ReceiverStats {
+    uint8_t linkQuality = 0;
+    int16_t activeRssiDbm = 0;
+};
+
+struct TelemetryTxStats {
+    uint32_t sentPackets = 0;
+    uint32_t skippedWrites = 0;
+    uint32_t partialWrites = 0;
+};
+
+class CRSFReceiver : public IReceiver {
   public:
     CRSFReceiver(uint8_t rxPin, uint8_t txPin);
 
@@ -17,10 +29,10 @@ class CRSFReceiver : public IReceiver, public ITelemetryLink {
     void onDisconnect(DisconnectCallback callback) override;
     ReceiverChannels getChannelsSnapshot() const override;
     
-    ReceiverStats getStatistics() const override;
-    void sendTelemetry(const char* statusText, uint32_t currentMs) override;
-    bool sendBattlebotTelemetry(const BattlebotTelemetry::TelemetryData& telemetry) override;
-    TelemetryTxStats getTelemetryTxStats() const override;
+    ReceiverStats getStatistics() const;
+    void sendTelemetry(const char* statusText, uint32_t currentMs);
+    bool sendBattlebotTelemetry(const BattlebotTelemetry::TelemetryData& telemetry);
+    TelemetryTxStats getTelemetryTxStats() const;
 
   private:
     uint8_t _rxPin;
