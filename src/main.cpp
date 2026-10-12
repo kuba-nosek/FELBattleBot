@@ -50,23 +50,55 @@ void onFailsafe() {
     }
 }
 
+// OTA update
 void enterOTAMode() {
     robot.state.requestedMode = DriveModeType::Idle;
 
-    robot.hw.indicator->setIndication(LEDIndication::OTAupdate);
+    if (robot.hw.povDisplay) {
+        robot.hw.povDisplay->setMode(POVDisplayMode::Static);
+        robot.hw.povDisplay->setAnimation(LEDStripAnimation::Bootup);
+    }
 
     WiFi.mode(WIFI_AP);
-    WiFi.setTxPower(WIFI_POWER_13dBm); 
-
-    WiFi.softAP("MELTY-OTA", "heslo_pro_ota");
+    WiFi.setSleep(false); 
+    delay(100); 
+    WiFi.setTxPower(WIFI_POWER_8_5dBm);
+    WiFi.softAP(RobotConfig::OTA_AP_SSID, RobotConfig::OTA_AP_PASSWORD);
     
-    ArduinoOTA.setHostname("meltybrain-ota");
+    static bool isUpdating = false;
+
+    ArduinoOTA.onStart([]() { 
+        isUpdating = true; 
+        if (robot.hw.indicator) {
+            robot.hw.indicator->setIndication(LEDIndication::OTA_Updating);
+        }
+    });
+
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        if (robot.hw.indicator) {
+            robot.hw.indicator->update();
+        }
+    });
+
+    ArduinoOTA.onEnd([]() { isUpdating = false; });
+    ArduinoOTA.onError([](ota_error_t error) { isUpdating = false; });
+
+    ArduinoOTA.setHostname(RobotConfig::OTA_HOSTNAME);
     ArduinoOTA.begin();
 
     while(true) {
         ArduinoOTA.handle();
         
-        if (robot.hw.indicator) robot.hw.indicator->update();
+        if (robot.hw.indicator) {
+            if (!isUpdating) {
+                if (WiFi.softAPgetStationNum() > 0) {
+                    robot.hw.indicator->setIndication(LEDIndication::OTA_Connected);
+                } else {
+                    robot.hw.indicator->setIndication(LEDIndication::OTA_Waiting);
+                }
+            }
+            robot.hw.indicator->update();
+        }
 
         if (receiver.isConnected()) {
             const ReceiverChannels channels = receiver.getChannelsSnapshot();
@@ -81,6 +113,7 @@ void enterOTAMode() {
         vTaskDelay(pdMS_TO_TICKS(10)); 
     }
 }
+
 
 
 void setup() {

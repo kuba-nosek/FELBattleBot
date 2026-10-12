@@ -148,48 +148,75 @@ void IndicatorLED::update() {
         uint32_t elapsed = currentMs - _animationStartMs;
         switch(_currentAnimation) {
             case LEDAnimation::Bootup:
+                // Steady flash: 125ms ON, 125ms OFF (4 Hz)
                 shouldLight = (elapsed % 250) < 125;
                 break;
             case LEDAnimation::ModeChanged:
+                // Fast flash: 50ms ON, 50ms OFF (10 Hz)
                 shouldLight = (elapsed % 100) < 50;
                 break;
             case LEDAnimation::ErrorAlert:
+                // Medium steady flash: 100ms ON, 100ms OFF (5 Hz)
                 shouldLight = (elapsed % 200) < 100;
                 break;
             case LEDAnimation::TelemetrySent:
+                // Single quick pulse: 50ms ON, then OFF
                 shouldLight = (elapsed < 50);
                 break;
             default:
+                // Solid ON
                 shouldLight = true;
                 break;
         }
     } else {
         switch(_currentIndication) {
             case LEDIndication::Off:
+                // Completely OFF
                 shouldLight = false;
                 break;
             case LEDIndication::Idle: {
+                // Heartbeat: 2 quick blinks every 2 seconds (100ms ON, 100ms OFF, 100ms ON)
                 uint32_t cycle = currentMs % 2000;
                 shouldLight = (cycle < 100) || (cycle > 200 && cycle < 300);
                 break;
             }
             case LEDIndication::Forward:
+                // Solid ON
                 shouldLight = true;
                 break;
             case LEDIndication::Spin:
+                // Externally triggered dynamic flash (heading based)
                 shouldLight = flashRunning;
                 break;
             case LEDIndication::Failsafe:
+                // Slow steady flash: 250ms ON, 250ms OFF (2 Hz)
                 shouldLight = (currentMs % 500) < 250;
                 break;
             case LEDIndication::HardwareError:
+                // Very fast strobe: 30ms ON, 30ms OFF (~16 Hz)
                 shouldLight = (currentMs % 60) < 30;
                 break;
-            case LEDIndication::LowBattery:
-                shouldLight = (currentMs % 1000) < 100;
+            case LEDIndication::LowBattery: {
+                // 2 quick blinks every 1 second
+                uint32_t cycle = currentMs % 1000;
+                shouldLight = (cycle < 100) || (cycle > 200 && cycle < 300);
                 break;
-            case LEDIndication::OTAupdate:
-                shouldLight = (currentMs % 200) < 100;
+            }
+            case LEDIndication::OTA_Waiting: {
+                // OTA Prefix: 3 quick blinks every 2 seconds
+                uint32_t cycle = currentMs % 2000;
+                shouldLight = (cycle < 100) || (cycle > 200 && cycle < 300) || (cycle > 400 && cycle < 500);
+                break;
+            }
+            case LEDIndication::OTA_Connected: {
+                // OTA Prefix + Long confirmation pulse in the second half
+                uint32_t cycle = currentMs % 2000;
+                shouldLight = (cycle < 100) || (cycle > 200 && cycle < 300) || (cycle > 400 && cycle < 500) || (cycle > 1000 && cycle < 1800);
+                break;
+            }
+            case LEDIndication::OTA_Updating:
+                // Fast strobe to mask processor jitter during flash write (10 Hz)
+                shouldLight = (currentMs % 100) < 50;
                 break;
             default:
                 break;
