@@ -1,6 +1,5 @@
 #pragma once
-
-#include "IRobotMode.h"
+#include "IRobot.h"
 
 class SpinMode : public IRobotMode {
   public:

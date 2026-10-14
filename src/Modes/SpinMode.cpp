@@ -1,7 +1,11 @@
 #include "SpinMode.h"
+#include "config.h"
+#include "Utils/Kinematics.h"
 
 #include <Arduino.h>
 #include <cmath>
+
+using namespace RobotConfig;
 
 namespace {
 struct MotorPowers {
@@ -9,7 +13,6 @@ struct MotorPowers {
     int32_t right;
 };
 
-// Hardware/timing placeholders to be calibrated on the finished robot.
 constexpr float MIN_SENSOR_RADIUS_METERS = 0.028f;
 constexpr float MAX_SENSOR_RADIUS_METERS = 0.036f;
 constexpr uint32_t LED_FLASH_DURATION_US = 500;
@@ -30,19 +33,18 @@ float wrapRadians(float angleRadians) {
 }
 
 float calculateSensorRadiusMeters(int32_t potentiometer) {
-    const float shiftedPotentiometer = static_cast<float>(potentiometer) + RobotConfig::RC_OUTPUT_SCALE;
-    const float fullPotentiometerRange = 2.0f * RobotConfig::RC_OUTPUT_SCALE;
+    const float shiftedPotentiometer = static_cast<float>(potentiometer) + RC_OUTPUT_SCALE;
+    const float fullPotentiometerRange = 2.0f * RC_OUTPUT_SCALE;
     const float potentiometerPosition = shiftedPotentiometer / fullPotentiometerRange;
 
     return MIN_SENSOR_RADIUS_METERS + potentiometerPosition * (MAX_SENSOR_RADIUS_METERS - MIN_SENSOR_RADIUS_METERS);
 }
 
 float calculateConstantHeadingOffsetRadians(int32_t potentiometer) {
-    return static_cast<float>(potentiometer) / RobotConfig::RC_OUTPUT_SCALE * PI_RADIANS;
+    return static_cast<float>(potentiometer) / RC_OUTPUT_SCALE * PI_RADIANS;
 }
 
 float calculateAngularSpeed(float centripetalAccelerationMps2, float sensorRadiusMeters) {
-    // Centripetal acceleration: a = omega^2 * radius.
     return std::sqrt(centripetalAccelerationMps2 / sensorRadiusMeters);
 }
 
@@ -63,11 +65,11 @@ bool isFlashDelayValid(float flashDelayUs) {
 
 int32_t getPower(int32_t rawPower, int switchPosition) {
     if (switchPosition < 0) {
-        return rawPower / 3;           // Low power (cca 33 %)
+        return rawPower / 3;
     } else if (switchPosition == 0) {
-        return (rawPower * 2) / 3;     // Mid power (cca 66 %)
+        return (rawPower * 2) / 3;
     } else {
-        return rawPower;               // High power (100 %)
+        return rawPower;
     }
 }
 
@@ -105,6 +107,10 @@ void SpinMode::updateHeading(float deltaSeconds, float angularSpeedRadPerSec) {
 }
 
 void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
+    const AccelData a1 = robot.state.accel1;
+    const AccelData a2 = robot.state.accel2;
+    const uint32_t currentMs = robot.state.currentMs;
+
     const uint32_t currentUs = micros();
     const uint32_t deltaUs = currentUs - lastUpdateUs_;
     lastUpdateUs_ = currentUs;
@@ -113,16 +119,13 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     const int32_t power = getPower(input.leftStickVertical, input.left3StateSwitch);
     int32_t amplitude = getPower(input.rightStickVertical, input.left3StateSwitch);
 
-    // top vs bottom side
-    if (robot.state.accel1.zMps2 < 0.0f) {
+    if (Kinematics::getAverageZ(a1, a2) < 0.0f) {
         amplitude = -amplitude;
     }
 
     const float sensorRadiusMeters = calculateSensorRadiusMeters(input.leftPot);
 
-    // Use the XY-plane magnitude so small mounting-angle errors do not affect
-    // the radial acceleration estimate.
-    const float centripetalAccelerationMps2 = std::hypot(robot.state.accel1.xMps2, robot.state.accel1.yMps2);
+    const float centripetalAccelerationMps2 = Kinematics::getCentripetalAcceleration(a1, a2);
 
     angularSpeedRadPerSec_ = calculateAngularSpeed(centripetalAccelerationMps2, sensorRadiusMeters);
 
@@ -140,7 +143,7 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     const float constantHeadingOffsetRadians = calculateConstantHeadingOffsetRadians(input.rightPot);
 
     constantHeadingOffsetRadians_ = constantHeadingOffsetRadians;
-    const float headingInput = static_cast<float>(input.rightStickHorizontal) / RobotConfig::RC_OUTPUT_SCALE;
+    const float headingInput = static_cast<float>(input.rightStickHorizontal) / RC_OUTPUT_SCALE;
     const float headingChangeSpeedRadPerSec = headingInput * MAX_HEADING_CHANGE_SPEED_RAD_PER_SEC;
     const float headingChangeRadians = headingChangeSpeedRadPerSec * deltaSeconds;
     const float updatedVariableOffsetRadians = variableHeadingOffsetRadians_ + headingChangeRadians;
@@ -154,8 +157,8 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     if(power == 0) amplitude = 0;
     const MotorPowers motorPowers = calculateMotorPowers(power, amplitude, correctedHeadingRadians);
 
-    robot.hw.leftMotor->setSpeed(static_cast<int16_t>(motorPowers.left), robot.state.currentMs);
-    robot.hw.rightMotor->setSpeed(static_cast<int16_t>(motorPowers.right), robot.state.currentMs);
+    robot.hw.leftMotor->setSpeed(static_cast<int16_t>(motorPowers.left), currentMs);
+    robot.hw.rightMotor->setSpeed(static_cast<int16_t>(motorPowers.right), currentMs);
 
     if(angularSpeedRadPerSec_ <= 0.0f || !std::isfinite(angularSpeedRadPerSec_)) {
         if (robot.hw.indicator) {
@@ -182,12 +185,17 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
 
 void SpinMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const {
     telemetry.mode = DriveModeType::Spin;
-    telemetry.accel1X = robot.state.accel1.xMps2;
-    telemetry.accel1Y = robot.state.accel1.yMps2;
-    telemetry.accel1Z = robot.state.accel1.zMps2;
-    telemetry.accel2X = robot.state.accel2.xMps2;
-    telemetry.accel2Y = robot.state.accel2.yMps2;
-    telemetry.accel2Z = robot.state.accel2.zMps2;
+
+    AccelData a1 = robot.state.accel1;
+    AccelData a2 = robot.state.accel2;
+    
+    telemetry.accel1X = a1.xMps2;
+    telemetry.accel1Y = a1.yMps2;
+    telemetry.accel1Z = a1.zMps2;
+    
+    telemetry.accel2X = a2.xMps2;
+    telemetry.accel2Y = a2.yMps2;
+    telemetry.accel2Z = a2.zMps2;
 
     telemetry.escLeftRpm = robot.state.escLeftRpm;
     telemetry.escLeftVolts = robot.state.escLeftVolts;

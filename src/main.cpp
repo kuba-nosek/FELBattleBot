@@ -7,10 +7,10 @@
 #include "CRSFReceiver.h"
 #include "IndicatorLED.h"
 #include "POVDisplay.h"
-#include "ModeHandler.h"
+#include "Core/ModeHandler.h"
 #include "AM32Motor.h"
-#include "SignalProcessing.h"
-#include "TelemetryManager.h"
+#include "Utils/SignalProcessing.h"
+#include "Core/TelemetryManager.h"
 #include "config.h"
 
 using namespace RobotConfig;
@@ -60,9 +60,8 @@ void enterOTAMode() {
     }
 
     WiFi.mode(WIFI_AP);
-    WiFi.setSleep(false); 
+    WiFi.setSleep(false);
     delay(100); 
-    WiFi.setTxPower(WIFI_POWER_8_5dBm);
     WiFi.softAP(RobotConfig::OTA_AP_SSID, RobotConfig::OTA_AP_PASSWORD);
     
     static bool isUpdating = false;
@@ -114,8 +113,6 @@ void enterOTAMode() {
     }
 }
 
-
-
 void setup() {
     Serial.begin(115200);
     delay(1000);
@@ -140,11 +137,9 @@ void setup() {
     // --- HARDWARE VERIFICATION ---
     bool hardwareOk = true;
 
-    // Verify motor ESCs
     hardwareOk &= motorLeft.init();
     hardwareOk &= motorRight.init();
 
-    // Verify IMU sensors
     bool accel1ok = accel1.init();
     bool accel2ok = accel2.init();
 
@@ -168,10 +163,10 @@ void setup() {
     robot.hw.indicator = &indicator;
     robot.hw.povDisplay = &povDisplay;
 
-    // Spawn FreeRTOS tasks
-    xTaskCreate(mainThread, "ControlLoop", 8192, NULL, 3, NULL);
-    xTaskCreate(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL);
-    xTaskCreate(LEDThread, "LED_Control", 2048, NULL, 1, NULL);
+    // Spawn FreeRTOS tasks pinned to respective cores
+    xTaskCreatePinnedToCore(mainThread, "ControlLoop", 8192, NULL, 3, NULL, 0);
+    xTaskCreatePinnedToCore(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(LEDThread, "LED_Control", 2048, NULL, 1, NULL, 1);
 }
 
 void loop() {
@@ -186,29 +181,35 @@ void mainThread(void* pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_CONTROL_HZ);
 
-    // light indication sync
     modeHandler.update(robot);
     bool wasConnected = false;
 
     while(true) {
         robot.state.currentMs = millis();
-
         robot.state.isConnected = receiver.isConnected();
 
-        // Capture one coherent frame so processing cannot mix channel values
         const ReceiverChannels channels = receiver.getChannelsSnapshot();
-
         const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
 
         if(robot.state.isConnected) {
-            robot.state.requestedMode = modeHandler.decodeMode(input.leftSwitch, input.rightSwitch);
-            if(robot.state.requestedMode == DriveModeType::Idle && input.leftShoulderSwitch) {
+            DriveModeType decodedMode = modeHandler.decodeMode(input.leftSwitch, input.rightSwitch);
+            robot.state.requestedMode = decodedMode;
+            
+            if(decodedMode == DriveModeType::Idle && input.leftShoulderSwitch) {
                 enterOTAMode();
             }
         }
 
-        if(accel1.isAvailable()) accel1.readData(robot.state.accel1);
-        if(accel2.isAvailable()) accel2.readData(robot.state.accel2);
+        if(accel1.isAvailable()) {
+            AccelData temp;
+            accel1.readData(temp);
+            robot.state.accel1 = temp;
+        }
+        if(accel2.isAvailable()) {
+            AccelData temp;
+            accel2.readData(temp);
+            robot.state.accel2 = temp;
+        }
 
         const bool modeChanged = modeHandler.update(robot);
         IRobotMode* currentMode = modeHandler.getCurrentMode();
@@ -224,8 +225,8 @@ void mainThread(void* pvParameters) {
                 robot.state.escRightVolts = motorRight.getVoltage();
             }
         }
+        
         if(!robot.state.isConnected) {
-            // Signalizace ztráty spojení v ControlLoop
             if (robot.hw.indicator) {
                 robot.hw.indicator->setIndication(LEDIndication::Failsafe);
             }
@@ -234,10 +235,9 @@ void mainThread(void* pvParameters) {
         }
         wasConnected = robot.state.isConnected;
 
-     if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {
-         telemetryManager.sendTelemetry(robot, *currentMode, receiver); 
-     }
-
+        if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {
+            telemetryManager.sendTelemetry(robot, *currentMode, receiver); 
+        }
 
         vTaskDelayUntil(&xLastWakeTime, taskPeriod);
     }

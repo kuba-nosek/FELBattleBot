@@ -1,5 +1,5 @@
 #pragma once
-#include "IRobotMode.h"
+#include "IRobot.h"
 
 class ForwardMode : public IRobotMode {
   public:

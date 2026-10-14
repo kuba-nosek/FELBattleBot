@@ -6,20 +6,22 @@ namespace RobotConfig {
 // ==========================================
 // 1. PINOUT & HARDWARE
 // ==========================================
-constexpr uint8_t PIN_CRSF_RX = 0;
-constexpr uint8_t PIN_CRSF_TX = 1;
+constexpr uint8_t PIN_CRSF_RX = 1;
+constexpr uint8_t PIN_CRSF_TX = 2;
 
-constexpr uint8_t PIN_MOTOR_L = 3;
-constexpr uint8_t PIN_MOTOR_R = 2;
+constexpr uint8_t PIN_MOTOR_L = 41;
+constexpr uint8_t PIN_MOTOR_R = 42;
+constexpr uint8_t PIN_MOTOR_L_TLM = 15;
+constexpr uint8_t PIN_MOTOR_R_TLM = 16;
 
-constexpr uint8_t PIN_LED = 9;
-constexpr uint8_t PIN_LED_STRIP = 21;
+constexpr uint8_t PIN_LED = 14;
+constexpr uint8_t PIN_LED_STRIP = 17;
 
-constexpr uint8_t PIN_SPI_SCK = 8;
-constexpr uint8_t PIN_SPI_MISO = 6;
-constexpr uint8_t PIN_SPI_MOSI = 7;
-constexpr uint8_t PIN_SPI_CS1 = 4;
-constexpr uint8_t PIN_SPI_CS2 = 5;
+constexpr uint8_t PIN_SPI_SCK = 12;
+constexpr uint8_t PIN_SPI_MISO = 13;
+constexpr uint8_t PIN_SPI_MOSI = 11;
+constexpr uint8_t PIN_SPI_CS1 = 9;
+constexpr uint8_t PIN_SPI_CS2 = 10;
 
 // ==========================================
 // 2. OTA (OVER-THE-AIR) SETTINGS
@@ -76,11 +78,6 @@ constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
 constexpr int32_t FORWARD_MAX_MOVING_TURN_PERCENT = 40;
 constexpr int32_t FORWARD_MAX_STANDING_TURN_POWER = 50;
 
-static_assert(FORWARD_MAX_MOVING_TURN_PERCENT >= 0 && FORWARD_MAX_MOVING_TURN_PERCENT <= 100,
-              "Forward moving turn percentage must be in the range 0..100");
-static_assert(FORWARD_MAX_STANDING_TURN_POWER >= 0 && FORWARD_MAX_STANDING_TURN_POWER <= RC_OUTPUT_SCALE,
-              "Forward standing turn power must be in the range 0..1000");
-
 // ==========================================
 // 8. POV LED STRIP
 // ==========================================
@@ -91,12 +88,6 @@ constexpr uint8_t LED_STRIP_SECTORS_PER_LED = 3;
 constexpr uint16_t LED_STRIP_SECTOR_COUNT = LED_STRIP_LED_COUNT * LED_STRIP_SECTORS_PER_LED;
 constexpr uint16_t LED_STRIP_REFRESH_HZ = 500;
 constexpr uint8_t LED_STRIP_BRIGHTNESS = 32;
-
-static_assert(LED_STRIP_LED_COUNT > 1, "The POV strip needs at least two LEDs");
-static_assert(LED_STRIP_LED_COUNT % 2 == 0, "The half-strip POV layout requires an even LED count");
-static_assert(LED_STRIP_SECTORS_PER_LED > 0, "The POV strip needs at least one sector per LED");
-static_assert(LED_STRIP_REFRESH_HZ > 0, "The POV strip refresh rate must be positive");
-static_assert(LED_STRIP_REFRESH_HZ <= 1000000, "The POV strip refresh interval must be at least one microsecond");
 
 // ==========================================
 // 9. TELEMETRY

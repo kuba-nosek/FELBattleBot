@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Modes/IRobotMode.h"
+#include "IRobot.h"
 #include "CRSFReceiver.h"
 
 class TelemetryManager {
