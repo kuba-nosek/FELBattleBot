@@ -86,7 +86,7 @@ void ForwardMode::execute(RobotCore& robot, const ReceiverInput& input) {
 
     const int32_t steeringExpoAmount = SCALE;
     const int32_t steeringExponent = expoPowerFromSwitch(input.right3StateSwitch);
-    const int32_t curvedSteering = applyExpo(input.rightStickHorizontal, steeringExpoAmount, steeringExponent);
+    const int32_t curvedSteering = applyExpo(-input.rightStickHorizontal, steeringExpoAmount, steeringExponent);
 
     const int32_t steeringScale = unitScaleFromPotentiometer(input.rightPot);
     const int64_t scaledSteering = static_cast<int64_t>(curvedSteering) * steeringScale;

@@ -171,7 +171,7 @@ void setup() {
     // Spawn FreeRTOS tasks
     xTaskCreate(mainThread, "ControlLoop", 8192, NULL, 3, NULL);
     xTaskCreate(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL);
-    xTaskCreate(LEDThread, "LED_Control", 2048, NULL, 1, NULL);
+    xTaskCreate(LEDThread, "LED_Control", 4096, NULL, 3, NULL);
 }
 
 void loop() {
@@ -259,6 +259,7 @@ void ReceiverThread(void* pvParameters) {
 // LED THREAD
 // ====================================================================
 void LEDThread(void* pvParameters) {
+    TickType_t lastWakeTime = xTaskGetTickCount();
     const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_LED_HZ);
 
     while(true) {

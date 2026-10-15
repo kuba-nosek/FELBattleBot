@@ -153,12 +153,12 @@ def render_array(name, sectors):
 
 def render_switch_cases(images):
     cases = [
-        "        case 0: return LEDStripAnimation::TestPattern;",
+        "        case 0: return LEDStripAnimation::Off;",
         "        case 1: return LEDStripAnimation::TestPattern;",
     ]
 
     for image_index in range(MAX_USER_IMAGES):
-        animation = images[image_index][0] if image_index < len(images) else "TestPattern"
+        animation = images[image_index][0] if image_index < len(images) else "Off"
         cases.append(f"        case {image_index + 2}: return LEDStripAnimation::{animation};")
 
     return "\n".join(cases)

@@ -32,5 +32,17 @@ Verify that committed generated files are current without changing them:
 python3 scripts/generate_led_strip_images.py --check
 ```
 
+Preview the ideal rotary image reconstructed from the actual generated C++
+arrays:
+
+```sh
+python3 scripts/preview_led_strip_image.py
+```
+
+The script saves one PNG per generated image and a combined `AllImages.png`
+under `.pio/led-strip-previews/`, then opens the combined preview. Add
+`--apply-runtime-brightness` to apply the configured strip brightness or
+`--no-show` to only write the PNG files.
+
 Every PlatformIO build runs the generator automatically. If Pillow is missing,
 install it with `python3 -m pip install Pillow`.

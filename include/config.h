@@ -89,7 +89,7 @@ constexpr uint16_t LED_STRIP_LED_COUNT = 14;
 constexpr uint16_t LED_STRIP_SPIN_LED_COUNT = LED_STRIP_LED_COUNT / 2;
 constexpr uint8_t LED_STRIP_SECTORS_PER_LED = 3;
 constexpr uint16_t LED_STRIP_SECTOR_COUNT = LED_STRIP_LED_COUNT * LED_STRIP_SECTORS_PER_LED;
-constexpr uint16_t LED_STRIP_REFRESH_HZ = 500;
+constexpr uint16_t LED_STRIP_REFRESH_HZ = 1200;
 constexpr uint8_t LED_STRIP_BRIGHTNESS = 32;
 
 static_assert(LED_STRIP_LED_COUNT > 1, "The POV strip needs at least two LEDs");
