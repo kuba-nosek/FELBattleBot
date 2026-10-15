@@ -15,7 +15,7 @@ constexpr uint8_t PIN_MOTOR_L = 3;
 constexpr uint8_t PIN_MOTOR_R = 2;
 
 constexpr bool MOTOR_LEFT_REVERSED = false;
-constexpr bool MOTOR_RIGHT_REVERSED = false;
+constexpr bool MOTOR_RIGHT_REVERSED = true;
 
 constexpr uint8_t PIN_LED = 9;
 
@@ -26,7 +26,7 @@ constexpr uint16_t LED_STRIP_LED_COUNT = 14;
 constexpr uint16_t LED_STRIP_SPIN_LED_COUNT = LED_STRIP_LED_COUNT / 2;
 constexpr uint8_t LED_STRIP_SECTORS_PER_LED = 3;
 constexpr uint16_t LED_STRIP_SECTOR_COUNT = LED_STRIP_LED_COUNT * LED_STRIP_SECTORS_PER_LED;
-constexpr uint16_t LED_STRIP_REFRESH_HZ = 500;
+constexpr uint16_t LED_STRIP_REFRESH_HZ = 1200;
 constexpr uint8_t LED_STRIP_BRIGHTNESS = 32;
 
 static_assert(LED_STRIP_LED_COUNT > 1, "The POV strip needs at least two LEDs");
@@ -45,13 +45,13 @@ constexpr uint8_t PIN_SPI_CS2 = 5;
 // ==========================================
 // IMU calibration [g]
 // ==========================================
-constexpr float IMU1_OFFSET_X_G = 0.08f;
-constexpr float IMU1_OFFSET_Y_G = 0.57f;
-constexpr float IMU1_OFFSET_Z_G = 2.85f;
+constexpr float IMU1_OFFSET_X_G = 0.19f;
+constexpr float IMU1_OFFSET_Y_G = 0.33f;
+constexpr float IMU1_OFFSET_Z_G = 1.55f;
 
-constexpr float IMU2_OFFSET_X_G = -0.30f;
-constexpr float IMU2_OFFSET_Y_G = 0.15f;
-constexpr float IMU2_OFFSET_Z_G = 1.94f;
+constexpr float IMU2_OFFSET_X_G = 0.0f;
+constexpr float IMU2_OFFSET_Y_G = 0.0f;
+constexpr float IMU2_OFFSET_Z_G = 0.0f;
 
 // ==========================================
 // RTOS thread timing

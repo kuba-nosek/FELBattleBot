@@ -10,8 +10,8 @@ struct MotorPowers {
 };
 
 // Hardware/timing placeholders to be calibrated on the finished robot.
-constexpr float MIN_SENSOR_RADIUS_METERS = 0.015f;
-constexpr float MAX_SENSOR_RADIUS_METERS = 0.05f;
+constexpr float MIN_SENSOR_RADIUS_METERS = 0.029f;
+constexpr float MAX_SENSOR_RADIUS_METERS = 0.035f;
 constexpr uint32_t LED_FLASH_DURATION_US = 500;
 constexpr uint32_t LED_MINIMUM_TIME_BETWEEN_FLASHES_US = 1000;
 
@@ -106,7 +106,7 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
 
     const float deltaSeconds = static_cast<float>(deltaUs) * MICROSECONDS_TO_SECONDS;
     const int32_t power = getPower(input.leftStickVertical, input.left3StateSwitch);
-    int32_t amplitude = input.rightStickVertical;
+    int32_t amplitude = -getPower(input.rightStickVertical, input.left3StateSwitch);
 
     const float sensorRadiusMeters = calculateSensorRadiusMeters(input.leftPot);
 

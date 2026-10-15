@@ -70,8 +70,11 @@ int8_t processThreeStateSwitch(uint16_t channelUs) {
 }
 
 uint8_t processSixStateSwitch(uint16_t channelUs) {
-    const uint16_t value = clampChannel(channelUs);
-    return static_cast<uint8_t>(mapRange(value, RobotConfig::RC_CHANNEL_MIN, RobotConfig::RC_CHANNEL_MAX, 0, 5));
+    const uint32_t value = clampChannel(channelUs);
+    const uint32_t inputRange = RobotConfig::RC_CHANNEL_MAX - RobotConfig::RC_CHANNEL_MIN;
+    const uint32_t scaledPosition = (value - RobotConfig::RC_CHANNEL_MIN) * 5U;
+
+    return static_cast<uint8_t>((scaledPosition + inputRange / 2U) / inputRange);
 }
 } // namespace
 
