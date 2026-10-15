@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Receiver.h"
+#include "IReceiver.h"
 #include "config.h"
 
 #include <stdint.h>

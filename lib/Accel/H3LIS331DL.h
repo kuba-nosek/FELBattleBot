@@ -1,21 +1,15 @@
 #pragma once
+#include "IAccel.h"
 #include <stdint.h>
 
-struct IMUData {
-    float xMps2 = 0.0f;
-    float yMps2 = 0.0f;
-    float zMps2 = 0.0f;
-};
-
-class IMU {
+class H3LIS331DL : public IAccel {
   public:
-    IMU(uint8_t csPin, float offsetXG, float offsetYG, float offsetZG);
+    H3LIS331DL(uint8_t csPin, float offsetXG, float offsetYG, float offsetZG);
 
-    bool init();
-    bool isAvailable() const;
-    bool readData(IMUData& dataOut);
+    bool init() override;
+    bool isAvailable() const override;
+    bool readData(AccelData& dataOut) override;
 
-    // Write to config registers (e.g., dynamically changing g-range limits)
     void writeConfig(uint8_t reg, uint8_t value);
 
   private:

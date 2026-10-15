@@ -10,8 +10,8 @@ struct MotorPowers {
 };
 
 // Hardware/timing placeholders to be calibrated on the finished robot.
-constexpr float MIN_SENSOR_RADIUS_METERS = 0.015f;
-constexpr float MAX_SENSOR_RADIUS_METERS = 0.05f;
+constexpr float MIN_SENSOR_RADIUS_METERS = 0.028f;
+constexpr float MAX_SENSOR_RADIUS_METERS = 0.036f;
 constexpr uint32_t LED_FLASH_DURATION_US = 500;
 constexpr uint32_t LED_MINIMUM_TIME_BETWEEN_FLASHES_US = 1000;
 
@@ -87,12 +87,17 @@ void SpinMode::init(RobotCore& robot) {
     spinDirection_ = 1;
     angularSpeedRadPerSec_ = 0.0f;
 
-    robot.hw.led->playAnimation(LEDAnimation::ModeChanged);
-    robot.hw.led->setIndication(LEDIndication::Spin);
-    robot.hw.led->setStripMode(LEDStripMode::Spinning);
-    robot.hw.led->setAnimation(LEDStripAnimation::Off);
-    robot.hw.led->setAngularVelocity(0.0f);
-    robot.hw.led->cancelScheduledFlash();
+    if (robot.hw.indicator) {
+        robot.hw.indicator->playAnimation(LEDAnimation::ModeChanged);
+        robot.hw.indicator->setIndication(LEDIndication::Spin);
+        robot.hw.indicator->cancelScheduledFlash();
+    }
+
+    if (robot.hw.povDisplay) {
+        robot.hw.povDisplay->setMode(POVDisplayMode::Spinning);
+        robot.hw.povDisplay->setAnimation(LEDStripAnimation::Off);
+        robot.hw.povDisplay->setAngularVelocity(0.0f);
+    }
 }
 
 void SpinMode::updateHeading(float deltaSeconds, float angularSpeedRadPerSec) {
@@ -106,21 +111,29 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
 
     const float deltaSeconds = static_cast<float>(deltaUs) * MICROSECONDS_TO_SECONDS;
     const int32_t power = getPower(input.leftStickVertical, input.left3StateSwitch);
-    int32_t amplitude = input.rightStickVertical;
+    int32_t amplitude = getPower(input.rightStickVertical, input.left3StateSwitch);
+
+    // top vs bottom side
+    if (robot.state.accel1.zMps2 < 0.0f) {
+        amplitude = -amplitude;
+    }
 
     const float sensorRadiusMeters = calculateSensorRadiusMeters(input.leftPot);
 
     // Use the XY-plane magnitude so small mounting-angle errors do not affect
     // the radial acceleration estimate.
-    const float centripetalAccelerationMps2 = std::hypot(robot.state.imu1.xMps2, robot.state.imu1.yMps2);
+    const float centripetalAccelerationMps2 = std::hypot(robot.state.accel1.xMps2, robot.state.accel1.yMps2);
 
     angularSpeedRadPerSec_ = calculateAngularSpeed(centripetalAccelerationMps2, sensorRadiusMeters);
 
     if(power != 0) spinDirection_ = power > 0 ? 1 : -1;
 
     const float signedAngularVelocityRadPerSec = spinDirection_ * angularSpeedRadPerSec_;
-    robot.hw.led->setAngularVelocity(signedAngularVelocityRadPerSec);
-    robot.hw.led->setAnimation(LEDStripImages::animationForSpinSwitchPosition(input.sixStateSwitch));
+    
+    if (robot.hw.povDisplay) {
+        robot.hw.povDisplay->setAngularVelocity(signedAngularVelocityRadPerSec);
+        robot.hw.povDisplay->setAnimation(LEDStripImages::animationForSpinSwitchPosition(input.sixStateSwitch));
+    }
 
     if(std::isfinite(angularSpeedRadPerSec_)) updateHeading(deltaSeconds, angularSpeedRadPerSec_);
 
@@ -145,7 +158,9 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     robot.hw.rightMotor->setSpeed(static_cast<int16_t>(motorPowers.right), robot.state.currentMs);
 
     if(angularSpeedRadPerSec_ <= 0.0f || !std::isfinite(angularSpeedRadPerSec_)) {
-        robot.hw.led->cancelScheduledFlash();
+        if (robot.hw.indicator) {
+            robot.hw.indicator->cancelScheduledFlash();
+        }
         return;
     }
 
@@ -153,22 +168,26 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
         calculateTimeUntilHeadingOffsetUs(correctedHeadingRadians, correctedAngularSpeedRadPerSec);
 
     if(!isFlashDelayValid(timeUntilHeadingOffsetUs)) {
-        robot.hw.led->cancelScheduledFlash();
+        if (robot.hw.indicator) {
+            robot.hw.indicator->cancelScheduledFlash();
+        }
         return;
     }
 
-    robot.hw.led->scheduleFlash(static_cast<uint32_t>(timeUntilHeadingOffsetUs), LED_FLASH_DURATION_US,
-                                LED_MINIMUM_TIME_BETWEEN_FLASHES_US);
+    if (robot.hw.indicator) {
+        robot.hw.indicator->scheduleFlash(static_cast<uint32_t>(timeUntilHeadingOffsetUs), LED_FLASH_DURATION_US,
+                                          LED_MINIMUM_TIME_BETWEEN_FLASHES_US);
+    }
 }
 
 void SpinMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const {
     telemetry.mode = DriveModeType::Spin;
-    telemetry.accel1X = robot.state.imu1.xMps2;
-    telemetry.accel1Y = robot.state.imu1.yMps2;
-    telemetry.accel1Z = robot.state.imu1.zMps2;
-    telemetry.accel2X = robot.state.imu2.xMps2;
-    telemetry.accel2Y = robot.state.imu2.yMps2;
-    telemetry.accel2Z = robot.state.imu2.zMps2;
+    telemetry.accel1X = robot.state.accel1.xMps2;
+    telemetry.accel1Y = robot.state.accel1.yMps2;
+    telemetry.accel1Z = robot.state.accel1.zMps2;
+    telemetry.accel2X = robot.state.accel2.xMps2;
+    telemetry.accel2Y = robot.state.accel2.yMps2;
+    telemetry.accel2Z = robot.state.accel2.zMps2;
 
     telemetry.escLeftRpm = robot.state.escLeftRpm;
     telemetry.escLeftVolts = robot.state.escLeftVolts;

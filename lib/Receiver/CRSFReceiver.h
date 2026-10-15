@@ -1,22 +1,16 @@
 #pragma once
+
 #include "BattlebotTelemetry.h"
+#include "IReceiver.h"
 
 #include <freertos/FreeRTOS.h>
 #include <stddef.h>
 #include <stdint.h>
 
-// Signal loss callback signature
-typedef void (*DisconnectCallback)();
-
+// Statistiky přesunuty z původního rozhraní
 struct ReceiverStats {
     uint8_t linkQuality = 0;
     int16_t activeRssiDbm = 0;
-};
-
-struct ReceiverChannels {
-    static constexpr size_t COUNT = 16;
-
-    uint16_t channelsUs[COUNT]{};
 };
 
 struct TelemetryTxStats {
@@ -25,17 +19,16 @@ struct TelemetryTxStats {
     uint32_t partialWrites = 0;
 };
 
-class Receiver {
+class CRSFReceiver : public IReceiver {
   public:
-    Receiver(uint8_t rxPin, uint8_t txPin);
+    CRSFReceiver(uint8_t rxPin, uint8_t txPin);
 
-    void connect();
-    void update();
-
-    bool isConnected() const;
-    void onDisconnect(DisconnectCallback callback);
-
-    ReceiverChannels getChannelsSnapshot() const;
+    void connect() override;
+    void update() override;
+    bool isConnected() const override;
+    void onDisconnect(DisconnectCallback callback) override;
+    ReceiverChannels getChannelsSnapshot() const override;
+    
     ReceiverStats getStatistics() const;
     void sendTelemetry(const char* statusText, uint32_t currentMs);
     bool sendBattlebotTelemetry(const BattlebotTelemetry::TelemetryData& telemetry);
