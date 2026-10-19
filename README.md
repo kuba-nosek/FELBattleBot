@@ -135,6 +135,38 @@ Install and model-setup instructions for the RadioMaster Boxer are in
 
 ---
 
+## Logging systen - 5-second RAM -> LittleFS 
+
+### Record
+- Lower CH7 right3StateSwitch, then switch to HIGH (+1). The rising edge starts a 5-second recording.
+- Logging samples are written to RAM at each existing 200 Hz control iteration; IMU hardware ODR is still 50 Hz (repeats are expected).
+- After 5 s, recording stops but motors continue operating normally until the operator disarms.
+- Once the robot reaches Idle, it stays disarmed until the buffered sample data is saved to `/capture.csv`.
+- New recording replaces the previous capture only once the new CSV is completed.
+
+### Download
+Disconnect power from motors or otherwise make the robot safe first. With the robot disarmed and USB attached:
+
+`python3 -m pip install pyserial`
+
+`python3 scripts/download_log.py /dev/ttyACM0 capture.csv`
+
+Other serial commands (115200 baud, newline terminated): `STATUS`, `DUMP`, `FORMAT`.
+`FORMAT` erases logs; do not send unless initializing or repairing the filesystem.
+
+### Select fields
+Edit only `src/Logging/LogFields.h`, adding/removing `X(name, expression)` lines in the `BB_LOG_FIELDS` macro. Existing `t_us` (time since trigger in microseconds) is always present. File's first line is the CSV header, automatically updated when changing fields.
+
+Default fields: six **post-driver-offset, m/s^2** acceleration channels (not untouched sensor register counts). RC/ESC fields can be enabled using examples in LogFields.h. ESP32-S3 PSRAM is preferred, internal RAM fallback.
+
+### Limitations
+- One saved capture `/capture.csv` at a time; next capture overwrites it after successful save. Download before next run if you want to keep multiple logs.
+- `LittleFS.begin(false)` does not silently erase data on mount failure; explicit FORMAT is required for a blank filesystem.
+- Flash writes and USB dumping are only allowed after entering Idle, and the robot cannot re-arm until the save finishes. Flash operations can stall real-time code even from another core.
+- Capture timestamps are taken once per control iteration after existing accelerometer reads; they are not accelerometer DRDY timestamps, and do not prove both sensors were sampled simultaneously.
+- If supply power is cst before the robot disarms and finishes saving, this capture (in RAM) is lost.
+- Manual tests and on-target PlatformIO compilation still required.
+
 ## Visual Feedback (LED UI & POV)
 
 The robot utilizes a time-modulo based visual language to communicate its current state and urgent events, coupled with an advanced POV display.
@@ -187,3 +219,5 @@ Safety is strictly integrated into the boot sequence and the operational loop:
 
 *   **Startup Verification:** During `setup()`, the system evaluates the boolean return values of all hardware `init()` routines. If critical hardware fails to initialize, the robot enters an infinite lock-state, triggering a continuous LED error sequence (`HardwareError`).
 *   **Hardware Failsafe:** The CRSF receiver continuously monitors the incoming telemetry frames. Upon a timeout (signal loss), a thread-safe callback is executed, forcing the `ModeHandler` into `IdleMode` and setting motor speeds to a strict zero.
+
+

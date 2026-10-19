@@ -12,6 +12,7 @@
 #include "Utils/SignalProcessing.h"
 #include "Core/TelemetryManager.h"
 #include "config.h"
+#include "Logging/DataLogger.h"
 
 using namespace RobotConfig;
 
@@ -29,6 +30,7 @@ POVDisplay povDisplay(PIN_LED_STRIP);
 
 ModeHandler modeHandler;
 TelemetryManager telemetryManager;
+DataLogger dataLogger; //shared between controlloop and loggingstorage
 
 RobotCore robot;
 
@@ -36,6 +38,7 @@ RobotCore robot;
 void mainThread(void* pvParameters);
 void ReceiverThread(void* pvParameters);
 void LEDThread(void* pvParameters);
+void LoggerStorageThread(void* pvParameters);
 
 // --- Safety failsafe callback ---
 void onFailsafe() {
@@ -119,6 +122,9 @@ void setup() {
 
     WiFi.mode(WIFI_OFF);
 
+    // Allocate RAM buffer, mount LittleFS (no automatic erase).
+    dataLogger.begin();
+
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
     SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE0));
 
@@ -143,7 +149,7 @@ void setup() {
     bool accel1ok = accel1.init();
     bool accel2ok = accel2.init();
 
-    hardwareOk &= (accel1ok);
+    hardwareOk &= accel1ok && accel2ok;
 
     if(!hardwareOk) {
         indicator.setIndication(LEDIndication::HardwareError);
@@ -167,7 +173,8 @@ void setup() {
     xTaskCreatePinnedToCore(mainThread, "ControlLoop", 8192, NULL, 3, NULL, 0);
     xTaskCreatePinnedToCore(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(LEDThread, "LED_Control", 2048, NULL, 1, NULL, 1);
-}
+    xTaskCreatePinnedToCore(LoggerStorageThread, "LogStorage", 4096, NULL, 1, NULL, 1);
+}   
 
 void loop() {
     vTaskDelete(NULL);
@@ -183,6 +190,7 @@ void mainThread(void* pvParameters) {
 
     modeHandler.update(robot);
     bool wasConnected = false;
+    uint32_t idleSinceMs = 0; //after enough time in idle mode - starts flashing
 
     while(true) {
         robot.state.currentMs = millis();
@@ -193,12 +201,22 @@ void mainThread(void* pvParameters) {
 
         if(robot.state.isConnected) {
             DriveModeType decodedMode = modeHandler.decodeMode(input.leftSwitch, input.rightSwitch);
+
+            // A pending flash save locks re-arming once the robot reaches Idle.
+            // While still spinning, let the operator disarm normally.
+            if(dataLogger.hasUnsavedData() && modeHandler.getCurrentModeID() == DriveModeType::Idle) {
+               decodedMode = DriveModeType::Idle;
+            }
+
             robot.state.requestedMode = decodedMode;
             
-            if(decodedMode == DriveModeType::Idle && input.leftShoulderSwitch) {
+            if(decodedMode == DriveModeType::Idle && input.leftShoulderSwitch && !dataLogger.isBusy()) {
                 enterOTAMode();
             }
         }
+
+        // CH7: right 3-position switch, trigger only on a LOW -> HIGH transition.
+        dataLogger.updateTrigger(robot.state.isConnected, input.right3StateSwitch == 1);
 
         if(accel1.isAvailable()) {
             AccelData temp;
@@ -239,6 +257,19 @@ void mainThread(void* pvParameters) {
             telemetryManager.sendTelemetry(robot, *currentMode, receiver); 
         }
 
+        // Fast RAM-only sampling. No Serial or filesystem calls here.
+        dataLogger.capture(robot, input, micros());
+        // Flash operations are permitted only after the motors have remained
+        // in Idle for a short settling interval.
+        const uint32_t nowMs = millis();
+        if(modeHandler.getCurrentModeID() == DriveModeType::Idle) {
+            if(idleSinceMs == 0) idleSinceMs = nowMs;
+            dataLogger.setSafeToSave(nowMs - idleSinceMs >= LOG_SETTLE_IDLE_MS);
+        } else {
+            idleSinceMs = 0;
+            dataLogger.setSafeToSave(false);
+        }
+
         vTaskDelayUntil(&xLastWakeTime, taskPeriod);
     }
 }
@@ -265,5 +296,15 @@ void LEDThread(void* pvParameters) {
         if (robot.hw.indicator) robot.hw.indicator->update();
         if (robot.hw.povDisplay) robot.hw.povDisplay->update();
         vTaskDelay(taskPeriod);
+    }
+}
+
+// ====================================================================
+// LOW PRIORITY STORAGE / USB CONTROL (CORE 1)
+// ====================================================================
+void LoggerStorageThread(void* pvParameters) {
+    while (true) {
+        dataLogger.service();
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
