@@ -163,11 +163,6 @@ void setup() {
     robot.hw.indicator = &indicator;
     robot.hw.povDisplay = &povDisplay;
 
-    // Spawn FreeRTOS tasks
-    xTaskCreate(mainThread, "ControlLoop", 8192, NULL, 3, NULL);
-    xTaskCreate(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL);
-    xTaskCreate(LEDThread, "LED_Control", 4096, NULL, 3, NULL);
-    // Spawn FreeRTOS tasks pinned to respective cores
     xTaskCreatePinnedToCore(mainThread, "ControlLoop", 8192, NULL, 3, NULL, 0);
     xTaskCreatePinnedToCore(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(LEDThread, "LED_Control", 2048, NULL, 1, NULL, 1);
