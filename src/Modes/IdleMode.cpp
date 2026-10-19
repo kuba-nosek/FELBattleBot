@@ -12,10 +12,16 @@ void IdleMode::execute(RobotCore& robot, const ReceiverInput&) {
 
 void IdleMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const {
     telemetry.mode = DriveModeType::Idle;
-    telemetry.accel1X = robot.state.accel1.xMps2;
-    telemetry.accel1Y = robot.state.accel1.yMps2;
-    telemetry.accel1Z = robot.state.accel1.zMps2;
-    telemetry.accel2X = robot.state.accel2.xMps2;
-    telemetry.accel2Y = robot.state.accel2.yMps2;
-    telemetry.accel2Z = robot.state.accel2.zMps2;
+
+    AccelData a1 = robot.state.accel1;
+    AccelData a2 = robot.state.accel2;
+    
+    telemetry.accel1X = a1.xMps2;
+    telemetry.accel1Y = a1.yMps2;
+    telemetry.accel1Z = a1.zMps2;
+    
+    telemetry.accel2X = a2.xMps2;
+    telemetry.accel2Y = a2.yMps2;
+    telemetry.accel2Z = a2.zMps2;
 }
+

@@ -7,20 +7,23 @@
 #include "DriveModeType.h"
 #include "IMotor.h"
 #include "ReceiverInput.h"
+#include "ThreadSafe.h"
 
 #include <stdint.h>
 
 struct RobotState {
-    uint32_t currentMs = 0;
-    bool isConnected = false;
-    DriveModeType requestedMode = DriveModeType::Idle;
-    AccelData accel1{};
-    AccelData accel2{};
+    ThreadSafe<uint32_t> currentMs{0};
+    ThreadSafe<bool> isConnected{false};
+    ThreadSafe<DriveModeType> requestedMode{DriveModeType::Idle};
+    
+    ThreadSafe<AccelData> accel1{};
+    ThreadSafe<AccelData> accel2{};
+    
     // --- ESC Telemetry ---
-    int32_t escLeftRpm = 0;
-    float escLeftVolts = 0.0f;
-    int32_t escRightRpm = 0;
-    float escRightVolts = 0.0f;
+    ThreadSafe<int32_t> escLeftRpm{0};
+    ThreadSafe<float> escLeftVolts{0.0f};
+    ThreadSafe<int32_t> escRightRpm{0};
+    ThreadSafe<float> escRightVolts{0.0f};
 };
 
 struct RobotHardware {
@@ -35,7 +38,6 @@ struct RobotCore {
     RobotState state;
     RobotHardware hw;
 };
-
 
 class IRobotMode {
   public:

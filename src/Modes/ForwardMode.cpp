@@ -5,6 +5,13 @@
 #include <algorithm>
 #include <cstdlib>
 
+using namespace RobotConfig;
+
+static_assert(FORWARD_MAX_MOVING_TURN_PERCENT >= 0 && FORWARD_MAX_MOVING_TURN_PERCENT <= 100,
+              "Forward moving turn percentage must be in the range 0..100");
+static_assert(FORWARD_MAX_STANDING_TURN_POWER >= 0 && FORWARD_MAX_STANDING_TURN_POWER <= RC_OUTPUT_SCALE,
+              "Forward standing turn power must be in the range 0..1000");
+
 namespace {
 struct MotorPowers {
     int32_t left;
@@ -100,10 +107,15 @@ void ForwardMode::execute(RobotCore& robot, const ReceiverInput& input) {
 
 void ForwardMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const {
     telemetry.mode = DriveModeType::Forward;
-    telemetry.accel1X = robot.state.accel1.xMps2;
-    telemetry.accel1Y = robot.state.accel1.yMps2;
-    telemetry.accel1Z = robot.state.accel1.zMps2;
-    telemetry.accel2X = robot.state.accel2.xMps2;
-    telemetry.accel2Y = robot.state.accel2.yMps2;
-    telemetry.accel2Z = robot.state.accel2.zMps2;
+    
+    AccelData a1 = robot.state.accel1;
+    AccelData a2 = robot.state.accel2;
+    
+    telemetry.accel1X = a1.xMps2;
+    telemetry.accel1Y = a1.yMps2;
+    telemetry.accel1Z = a1.zMps2;
+    
+    telemetry.accel2X = a2.xMps2;
+    telemetry.accel2Y = a2.yMps2;
+    telemetry.accel2Z = a2.zMps2;
 }

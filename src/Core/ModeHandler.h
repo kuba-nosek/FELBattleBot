@@ -1,8 +1,8 @@
 #pragma once
 #include "Modes/ForwardMode.h"
-#include "Modes/IRobotMode.h"
 #include "Modes/IdleMode.h"
 #include "Modes/SpinMode.h"
+#include "IRobot.h"
 
 class ModeHandler {
   public:

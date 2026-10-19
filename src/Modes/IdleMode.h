@@ -1,5 +1,5 @@
 #pragma once
-#include "IRobotMode.h"
+#include "IRobot.h"
 
 class IdleMode : public IRobotMode {
   public:
