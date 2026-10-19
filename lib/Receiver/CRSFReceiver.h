@@ -1,22 +1,14 @@
 #pragma once
 
-#include "BattlebotTelemetry.h"
 #include "IReceiver.h"
 
 #include <freertos/FreeRTOS.h>
 #include <stddef.h>
 #include <stdint.h>
 
-// Statistiky přesunuty z původního rozhraní
 struct ReceiverStats {
     uint8_t linkQuality = 0;
     int16_t activeRssiDbm = 0;
-};
-
-struct TelemetryTxStats {
-    uint32_t sentPackets = 0;
-    uint32_t skippedWrites = 0;
-    uint32_t partialWrites = 0;
 };
 
 class CRSFReceiver : public IReceiver {
@@ -30,19 +22,13 @@ class CRSFReceiver : public IReceiver {
     ReceiverChannels getChannelsSnapshot() const override;
     
     ReceiverStats getStatistics() const;
-    void sendTelemetry(const char* statusText, uint32_t currentMs);
-    bool sendBattlebotTelemetry(const BattlebotTelemetry::TelemetryData& telemetry);
-    TelemetryTxStats getTelemetryTxStats() const;
 
   private:
     uint8_t _rxPin;
     uint8_t _txPin;
 
     uint32_t _lastValidFrameMs;
-    uint32_t _lastTelemetryMs;
-    uint8_t _telemetrySequence;
     ReceiverStats _stats;
-    TelemetryTxStats _telemetryTxStats;
 
     bool _connected;
     DisconnectCallback _disconnectCallback;

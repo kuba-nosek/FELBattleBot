@@ -21,6 +21,7 @@ bool isFlashValid(uint32_t startTimeFromNowUs, uint32_t flashDurationUs, uint32_
 }
 } // namespace
 
+
 IndicatorLED::IndicatorLED(uint8_t pin)
     : _pin(pin), _currentIndication(LEDIndication::Off), _currentAnimation(LEDAnimation::None),
       _animationActive(false), _animationStartMs(0), _animationDurationMs(0), _lastToggleMs(0), _ledState(false),

@@ -23,12 +23,6 @@ void ModeHandler::changeMode(DriveModeType newMode, RobotCore& robot) {
     _currentModeType = newMode;
 
     switch(newMode) {
-        case DriveModeType::Forward:
-            _currentMode = &_forwardMode;
-            break;
-        case DriveModeType::Spin:
-            _currentMode = &_spinMode;
-            break;
         default:
             _currentMode = &_idleMode;
             _currentModeType = DriveModeType::Idle;

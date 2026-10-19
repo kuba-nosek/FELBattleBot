@@ -14,7 +14,6 @@ constexpr uint8_t CRSF_RECEIVER_ADDRESS = 0xEC;
 constexpr uint8_t CRSF_TRANSMITTER_ADDRESS = 0xEE;
 constexpr uint8_t RC_CHANNELS_PACKED = 0x16;
 constexpr uint8_t LINK_STATISTICS = 0x14;
-constexpr uint8_t FLIGHT_MODE_FRAME_TYPE = 0x21;
 
 bool isValidAddress(uint8_t address) {
     if(address == CRSF_FLIGHT_CONTROLLER_ADDRESS) return true;
@@ -23,7 +22,7 @@ bool isValidAddress(uint8_t address) {
     return false;
 }
 
-// Helper: DVB-S2 CRC8 checksum calculator[cite: 1]
+// Helper: DVB-S2 CRC8 checksum calculator
 uint8_t crc8(const uint8_t* data, size_t length) {
     uint8_t crc = 0;
     for(size_t i = 0; i < length; ++i) {
@@ -35,7 +34,7 @@ uint8_t crc8(const uint8_t* data, size_t length) {
     return crc;
 }
 
-// Helper: Map raw 11-bit CRSF data to standard RC microseconds (988 - 2012 us)[cite: 1]
+// Helper: Map raw 11-bit CRSF data to standard RC microseconds (988 - 2012 us)
 uint16_t rawToMicroseconds(const uint16_t raw) {
     int32_t scaled = 988 + (static_cast<int32_t>(raw) - 172) * 1024 / 1639;
     if(scaled < 988) return 988;
@@ -45,7 +44,7 @@ uint16_t rawToMicroseconds(const uint16_t raw) {
 } // namespace
 
 CRSFReceiver::CRSFReceiver(uint8_t rxPin, uint8_t txPin)
-    : _rxPin(rxPin), _txPin(txPin), _lastValidFrameMs(0), _lastTelemetryMs(0), _telemetrySequence(0),
+    : _rxPin(rxPin), _txPin(txPin), _lastValidFrameMs(0),
       _connected(false), _disconnectCallback(nullptr) {
     _position = 0;
     _expectedSize = 0;
@@ -82,10 +81,6 @@ ReceiverStats CRSFReceiver::getStatistics() const {
     return _stats;
 }
 
-TelemetryTxStats CRSFReceiver::getTelemetryTxStats() const {
-    return _telemetryTxStats;
-}
-
 // ====================================================================
 // CONTINUOUS POLLING & FAILSAFE
 // ====================================================================
@@ -98,7 +93,7 @@ void CRSFReceiver::update() {
         bytesProcessed++;
     }
 
-    // Trigger failsafe if no valid frames received within timeout[cite: 5]
+    // Trigger failsafe if no valid frames received within timeout
     if(_connected && (millis() - _lastValidFrameMs > CRSF_FAILSAFE_TIMEOUT_MS)) {
         _connected = false;
         if(_disconnectCallback != nullptr) {
@@ -112,7 +107,7 @@ void CRSFReceiver::update() {
 // ====================================================================
 
 void CRSFReceiver::processByte(uint8_t byte) {
-    // 1. Sync & Device Address[cite: 1]
+    // 1. Sync & Device Address
     if(_position == 0) {
         if(isValidAddress(byte)) {
             _frame[_position++] = byte;
@@ -120,7 +115,7 @@ void CRSFReceiver::processByte(uint8_t byte) {
         return;
     }
 
-    // 2. Frame Length[cite: 1]
+    // 2. Frame Length
     if(_position == 1) {
         if(byte < 2 || byte > 62) {
             _position = 0; // Invalid size, reset parser
@@ -132,18 +127,18 @@ void CRSFReceiver::processByte(uint8_t byte) {
         return;
     }
 
-    // 3. Accumulate Payload[cite: 1]
+    // 3. Accumulate Payload
     _frame[_position++] = byte;
     if(_position < _expectedSize) {
         return;
     }
 
-    // 4. Validate CRC and Decode[cite: 1]
+    // 4. Validate CRC and Decode
     size_t crcIndex = _expectedSize - 1;
     if(crc8(&_frame[2], crcIndex - 2) == _frame[crcIndex]) {
         uint8_t frameType = _frame[2];
 
-        // Decode RC Joystick/Switch Data[cite: 1]
+        // Decode RC Joystick/Switch Data
         if(frameType == RC_CHANNELS_PACKED) {
             ReceiverChannels decodedChannels{};
             const uint8_t* payload = &_frame[3];
@@ -170,7 +165,7 @@ void CRSFReceiver::processByte(uint8_t byte) {
             _lastValidFrameMs = millis();
             _connected = true;
         }
-        // Decode RF Link Statistics[cite: 1]
+        // Decode RF Link Statistics
         else if(frameType == LINK_STATISTICS) {
             const uint8_t* payload = &_frame[3];
             _stats.activeRssiDbm = -static_cast<int16_t>(payload[4] == 0 ? payload[0] : payload[1]);
@@ -179,65 +174,4 @@ void CRSFReceiver::processByte(uint8_t byte) {
     }
 
     _position = 0; // Reset parser for next frame
-}
-
-// ====================================================================
-// TELEMETRY TRANSMISSION
-// ====================================================================
-
-void CRSFReceiver::sendTelemetry(const char* statusText, uint32_t currentMs) {
-    // Rate limit to 2 Hz to prevent bandwidth saturation
-    if(currentMs - _lastTelemetryMs < 500) return;
-
-    if(statusText == nullptr) return;
-
-    size_t textLength = 0;
-    while(textLength < 20 && statusText[textLength] != '\0')
-        textLength++;
-
-    // Build standard Flight Mode text frame
-    // Future: Expand to send Battery Voltage or Melty Brain RPM data back to the radio
-    uint8_t frame[32];
-    frame[0] = CRSF_FLIGHT_CONTROLLER_ADDRESS;
-    frame[1] = textLength + 3; // Type (1) + Text (X) + NUL (1) + CRC (1)[cite: 2]
-    frame[2] = FLIGHT_MODE_FRAME_TYPE;
-
-    for(size_t i = 0; i < textLength; ++i) {
-        frame[3 + i] = statusText[i];
-    }
-    frame[3 + textLength] = '\0';
-    frame[4 + textLength] = crc8(&frame[2], textLength + 2);
-
-    size_t frameSize = textLength + 5;
-    if(crsfSerial.availableForWrite() >= frameSize) {
-        crsfSerial.write(frame, frameSize);
-        _lastTelemetryMs = currentMs;
-    }
-}
-
-bool CRSFReceiver::sendBattlebotTelemetry(const BattlebotTelemetry::TelemetryData& telemetry) {
-    if(!_connected) {
-        return false;
-    }
-
-    uint8_t frame[BattlebotTelemetry::FRAME_SIZE];
-    const size_t frameSize = BattlebotTelemetry::buildFrame(frame, sizeof(frame), _telemetrySequence, telemetry);
-    if(frameSize == 0) {
-        return false;
-    }
-
-    if(crsfSerial.availableForWrite() < static_cast<int>(frameSize)) {
-        ++_telemetryTxStats.skippedWrites;
-        return false;
-    }
-
-    const size_t bytesWritten = crsfSerial.write(frame, frameSize);
-    if(bytesWritten != frameSize) {
-        ++_telemetryTxStats.partialWrites;
-        return false;
-    }
-
-    ++_telemetrySequence;
-    ++_telemetryTxStats.sentPackets;
-    return true;
 }

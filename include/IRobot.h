@@ -2,8 +2,6 @@
 #include "IAccel.h"
 #include "IReceiver.h"
 #include "IndicatorLED.h"
-#include "POVDisplay.h"
-#include "BattlebotTelemetry.h"
 #include "DriveModeType.h"
 #include "IMotor.h"
 #include "ReceiverInput.h"
@@ -12,18 +10,8 @@
 #include <stdint.h>
 
 struct RobotState {
-    ThreadSafe<uint32_t> currentMs{0};
     ThreadSafe<bool> isConnected{false};
     ThreadSafe<DriveModeType> requestedMode{DriveModeType::Idle};
-    
-    ThreadSafe<AccelData> accel1{};
-    ThreadSafe<AccelData> accel2{};
-    
-    // --- ESC Telemetry ---
-    ThreadSafe<int32_t> escLeftRpm{0};
-    ThreadSafe<float> escLeftVolts{0.0f};
-    ThreadSafe<int32_t> escRightRpm{0};
-    ThreadSafe<float> escRightVolts{0.0f};
 };
 
 struct RobotHardware {
@@ -31,7 +19,6 @@ struct RobotHardware {
     IMotor* rightMotor = nullptr;
     IReceiver* rx = nullptr;
     IndicatorLED* indicator = nullptr;
-    POVDisplay* povDisplay = nullptr;
 };
 
 struct RobotCore {
@@ -46,6 +33,4 @@ class IRobotMode {
     virtual void init(RobotCore& robot) = 0;
 
     virtual void execute(RobotCore& robot, const ReceiverInput& input) = 0;
-
-    virtual void sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const = 0;
 };

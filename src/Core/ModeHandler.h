@@ -1,7 +1,5 @@
 #pragma once
-#include "Modes/ForwardMode.h"
 #include "Modes/IdleMode.h"
-#include "Modes/SpinMode.h"
 #include "IRobot.h"
 
 class ModeHandler {
@@ -18,8 +16,6 @@ class ModeHandler {
     DriveModeType _currentModeType;
 
     IdleMode _idleMode;
-    ForwardMode _forwardMode;
-    SpinMode _spinMode;
 
     void changeMode(DriveModeType newMode, RobotCore& robot);
 };

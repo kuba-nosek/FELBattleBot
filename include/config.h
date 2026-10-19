@@ -45,17 +45,6 @@ constexpr bool MOTOR_RIGHT_REVERSED = true;
 constexpr uint8_t MOTOR_POLE_PAIRS = 7;
 
 // ==========================================
-// 5. ACCELEROMETER CALIBRATION [g]
-// ==========================================
-constexpr float ACCEL1_OFFSET_X_G = 0.08f;
-constexpr float ACCEL1_OFFSET_Y_G = 0.57f;
-constexpr float ACCEL1_OFFSET_Z_G = 2.85f;
-
-constexpr float ACCEL2_OFFSET_X_G = -0.30f;
-constexpr float ACCEL2_OFFSET_Y_G = 0.15f;
-constexpr float ACCEL2_OFFSET_Z_G = 1.94f;
-
-// ==========================================
 // 6. RC & SIGNAL PROCESSING
 // ==========================================
 constexpr uint16_t RC_CHANNEL_MIN = 988;
@@ -71,31 +60,6 @@ constexpr int32_t RC_OUTPUT_SCALE = 1000;
 // Generic thresholds used for mapped switches
 constexpr uint16_t RC_SWITCH_LOW_THRESHOLD = 1300;
 constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
-
-// ==========================================
-// 7. DRIVE MODES CONFIGURATION
-// ==========================================
-constexpr int32_t FORWARD_MAX_MOVING_TURN_PERCENT = 40;
-constexpr int32_t FORWARD_MAX_STANDING_TURN_POWER = 50;
-
-// ==========================================
-// 8. POV LED STRIP
-// ==========================================
-constexpr bool USE_LED_STRIP = true;
-constexpr uint16_t LED_STRIP_LED_COUNT = 14;
-constexpr uint16_t LED_STRIP_SPIN_LED_COUNT = LED_STRIP_LED_COUNT / 2;
-constexpr uint8_t LED_STRIP_SECTORS_PER_LED = 3;
-constexpr uint16_t LED_STRIP_SECTOR_COUNT = LED_STRIP_LED_COUNT * LED_STRIP_SECTORS_PER_LED;
-constexpr uint16_t LED_STRIP_REFRESH_HZ = 1200;
-constexpr uint8_t LED_STRIP_BRIGHTNESS = 32;
-
-// ==========================================
-// 9. TELEMETRY
-// ==========================================
-// This uses a private payload (0xF3) inside CRSF frame type 0x80.
-// Do not enable it together with ArduPilot/Yaapu passthrough telemetry.
-constexpr bool TELEMETRY_ENABLED = true;
-constexpr uint32_t TELEMETRY_INTERVAL_MS = 500;
 
 } // namespace RobotConfig
 
@@ -119,20 +83,3 @@ constexpr uint32_t TELEMETRY_INTERVAL_MS = 500;
     X(rightPot, Potentiometer, 10)                                                                                     \
     X(sixStateSwitch, SixStateSwitch, 11)                                                                              \
     X(leftShoulderSwitch, TwoStateSwitch, 12)
-
-// Telemetry packet configuration.
-// Format: X(fieldName, fieldType)
-// Supported field types: int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, float.
-#define TELEMETRY_FIELD_MAP(X)                                                                                         \
-    X(mode, uint8_t)                                                                                                   \
-    X(rpm, int16_t)                                                                                                    \
-    X(accel1X, float)                                                                                                  \
-    X(accel1Y, float)                                                                                                  \
-    X(accel1Z, float)                                                                                                  \
-    X(accel2X, float)                                                                                                  \
-    X(accel2Y, float)                                                                                                  \
-    X(accel2Z, float)                                                                                                  \
-    X(escLeftRpm, int32_t)                                                                                             \
-    X(escLeftVolts, float)                                                                                             \
-    X(escRightRpm, int32_t)                                                                                            \
-    X(escRightVolts, float)                                                                                             
