@@ -1,27 +1,20 @@
 #pragma once
 
-#include "BattlebotTelemetry.h"
 #include "IReceiver.h"
-
+#include <HardwareSerial.h>
 #include <freertos/FreeRTOS.h>
 #include <stddef.h>
 #include <stdint.h>
 
-// Statistiky přesunuty z původního rozhraní
 struct ReceiverStats {
     uint8_t linkQuality = 0;
     int16_t activeRssiDbm = 0;
 };
 
-struct TelemetryTxStats {
-    uint32_t sentPackets = 0;
-    uint32_t skippedWrites = 0;
-    uint32_t partialWrites = 0;
-};
-
 class CRSFReceiver : public IReceiver {
   public:
-    CRSFReceiver(uint8_t rxPin, uint8_t txPin);
+    // Konstruktor nyní přijímá referenci na sériovou linku
+    CRSFReceiver(HardwareSerial& serial, uint8_t rxPin, uint8_t txPin);
 
     void connect() override;
     void update() override;
@@ -30,24 +23,18 @@ class CRSFReceiver : public IReceiver {
     ReceiverChannels getChannelsSnapshot() const override;
     
     ReceiverStats getStatistics() const;
-    void sendTelemetry(const char* statusText, uint32_t currentMs);
-    bool sendBattlebotTelemetry(const BattlebotTelemetry::TelemetryData& telemetry);
-    TelemetryTxStats getTelemetryTxStats() const;
 
   private:
+    HardwareSerial& _serial;
     uint8_t _rxPin;
     uint8_t _txPin;
 
     uint32_t _lastValidFrameMs;
-    uint32_t _lastTelemetryMs;
-    uint8_t _telemetrySequence;
     ReceiverStats _stats;
-    TelemetryTxStats _telemetryTxStats;
 
     bool _connected;
     DisconnectCallback _disconnectCallback;
 
-    // --- Internal CRSF parser state ---
     uint8_t _frame[64]{};
     size_t _position;
     size_t _expectedSize;

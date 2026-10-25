@@ -125,7 +125,7 @@ constexpr uint32_t TELEMETRY_INTERVAL_MS = 500;
 // Supported field types: int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, float.
 #define TELEMETRY_FIELD_MAP(X)                                                                                         \
     X(mode, uint8_t)                                                                                                   \
-    X(rpm, int16_t)                                                                                                    \
+    X(rpm, float)                                                                                                    \
     X(accel1X, float)                                                                                                  \
     X(accel1Y, float)                                                                                                  \
     X(accel1Z, float)                                                                                                  \

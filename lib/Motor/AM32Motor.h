@@ -1,6 +1,8 @@
 #pragma once
 
 #include "IMotor.h"
+#include "IEscFeedback.h"
+
 #include <Arduino.h>
 #include <driver/rmt_rx.h>
 #include <driver/rmt_tx.h>
@@ -22,7 +24,7 @@ enum DShotRxStatus : uint8_t {
     DSHOT_RX_BAD_CRC
 };
 
-class AM32Motor : public IMotor {
+class AM32Motor : public IMotor, public IEscFeedback {
 public:
     AM32Motor(uint8_t gpioPin, bool reversed = false, uint8_t polePairs = 7);
     ~AM32Motor() override;
@@ -30,7 +32,6 @@ public:
     // --- IMotor Interface ---
     bool init() override;
     void setReversed(bool reversed) override;
-    void resetDirectionGuard() override;
     void stop() override;
     void setSpeed(int16_t speed, uint32_t currentMs) override;
 
@@ -38,11 +39,11 @@ public:
     void sendCommand(uint16_t cmd, uint8_t repeat = 10);
     int16_t getSpeed() const;
 
-    // --- Telemetry Methods ---
-    int32_t getRpm() const { return _erpm / _polePairs; }
-    float getVoltage() const { return _edtVolts; }
-    float getCurrent() const { return _edtAmps; }
-    bool isTelemetryValid() const { return _status == DSHOT_RX_OK; }
+    // --- IEscFeedback (telemetry) Interface ---
+    bool isFeedbackValid() const override { return _status == DSHOT_RX_OK; }
+    int32_t getRpm() const override { return _erpm / _polePairs; }
+    float getVoltage() const override { return _edtVolts; }
+    float getCurrent() const override { return _edtAmps; }
 
 private:
     uint8_t _gpioPin;
