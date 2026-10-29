@@ -22,6 +22,8 @@ constexpr uint8_t PIN_SPI_MISO = 13;
 constexpr uint8_t PIN_SPI_MOSI = 11;
 constexpr uint8_t PIN_SPI_CS1 = 9;
 constexpr uint8_t PIN_SPI_CS2 = 10;
+constexpr uint8_t PIN_ACCEL1_INT1 = 5;
+constexpr uint8_t PIN_ACCEL2_INT1 = 7;
 
 // ==========================================
 // 2. OTA (OVER-THE-AIR) SETTINGS

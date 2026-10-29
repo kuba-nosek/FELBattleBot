@@ -36,6 +36,24 @@ RobotCore robot;
 void mainThread(void* pvParameters);
 void ReceiverThread(void* pvParameters);
 void LEDThread(void* pvParameters);
+void accelThread(void* pvParameters);
+
+// Globální handle pro notifikace
+TaskHandle_t accelTaskHandle = nullptr;
+TaskHandle_t mainTaskHandle = nullptr;
+
+// ISR funkce musí být v IRAM (nesmí se stránkovat z flash paměti)
+void IRAM_ATTR accel1_isr() {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(accelTaskHandle, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
+}
+
+void IRAM_ATTR accel2_isr() {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(accelTaskHandle, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
+}
 
 // --- Safety failsafe callback ---
 void onFailsafe() {
@@ -120,7 +138,6 @@ void setup() {
     WiFi.mode(WIFI_OFF);
 
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
-    SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE0));
 
     indicator.init();
     povDisplay.init();
@@ -157,15 +174,25 @@ void setup() {
         }
     }
 
+    pinMode(PIN_ACCEL1_INT1, INPUT);
+    pinMode(PIN_ACCEL2_INT1, INPUT);
+
     robot.hw.leftMotor = &motorLeft;
     robot.hw.rightMotor = &motorRight;
     robot.hw.rx = &receiver;
     robot.hw.indicator = &indicator;
     robot.hw.povDisplay = &povDisplay;
 
-    xTaskCreatePinnedToCore(mainThread, "ControlLoop", 8192, NULL, 3, NULL, 0);
+    xTaskCreatePinnedToCore(mainThread, "ControlLoop", 8192, NULL, 3, &mainTaskHandle, 0);
     xTaskCreatePinnedToCore(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(LEDThread, "LED_Control", 2048, NULL, 1, NULL, 1);
+
+    xTaskCreatePinnedToCore(accelThread, "Accel_Task", 4096, nullptr, 4, &accelTaskHandle, 1);
+
+    attachInterrupt(digitalPinToInterrupt(PIN_ACCEL1_INT1), accel1_isr, RISING);
+    attachInterrupt(digitalPinToInterrupt(PIN_ACCEL2_INT1), accel2_isr, RISING);
+
+    xTaskNotifyGive(accelTaskHandle);
 }
 
 void loop() {
@@ -184,6 +211,8 @@ void mainThread(void* pvParameters) {
     bool wasConnected = false;
 
     while(true) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
         robot.state.currentMs = millis();
         robot.state.isConnected = receiver.isConnected();
 
@@ -197,17 +226,6 @@ void mainThread(void* pvParameters) {
             if(decodedMode == DriveModeType::Idle && input.leftShoulderSwitch) {
                 enterOTAMode();
             }
-        }
-
-        if(accel1.isAvailable()) {
-            AccelData temp;
-            accel1.readData(temp);
-            robot.state.accel1 = temp;
-        }
-        if(accel2.isAvailable()) {
-            AccelData temp;
-            accel2.readData(temp);
-            robot.state.accel2 = temp;
         }
 
         const bool modeChanged = modeHandler.update(robot);
@@ -237,8 +255,6 @@ void mainThread(void* pvParameters) {
         if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {
             telemetryManager.sendTelemetry(robot, *currentMode, receiver); 
         }
-
-        vTaskDelayUntil(&xLastWakeTime, taskPeriod);
     }
 }
 
@@ -267,3 +283,26 @@ void LEDThread(void* pvParameters) {
         vTaskDelay(taskPeriod);
     }
 }
+
+// accelerometer data readout
+void accelThread(void* pvParameters) {
+    while(true) {
+        // Vlákno zde spí a nekonzumuje žádný CPU čas. 
+        // Probudí se okamžitě, jakmile jakýkoliv ISR zavolá vTaskNotifyGiveFromISR.
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        AccelData temp1, temp2;
+        
+        accel1.readData(temp1); 
+        robot.state.accel1 = temp1; // Zápis přes bezpečný ThreadSafe wrapper
+
+        accel2.readData(temp2);
+        robot.state.accel2 = temp2;
+
+        if (mainTaskHandle != nullptr) {
+            xTaskNotifyGive(mainTaskHandle);
+        }
+
+    }
+}
+

@@ -28,9 +28,11 @@ bool H3LIS331DL::init() {
 
     if(id == EXPECTED_ID) {
         // Default configuration
-        writeConfig(CTRL_REG1, 0x27); // 50 Hz, XYZ axes enabled
+        // 0x3F = 1000 Hz, Normal mode, X+Y+Z aktivní
+        writeConfig(CTRL_REG1, 0x3F);
         writeConfig(CTRL_REG2, 0x00);
-        writeConfig(CTRL_REG3, 0x00);
+        // interrupt
+        writeConfig(CTRL_REG3, 0x02); 
         // 0xB0 = 1011 0000 -> BDU=1, FS=11 (400g)
         writeConfig(CTRL_REG4, 0xB0); 
         writeConfig(CTRL_REG5, 0x00);
@@ -38,10 +40,11 @@ bool H3LIS331DL::init() {
         _isAvailable = true;
         return true;
     }
-
+    
     _isAvailable = false;
     return false;
 }
+
 
 bool H3LIS331DL::isAvailable() const {
     return _isAvailable;
@@ -49,10 +52,12 @@ bool H3LIS331DL::isAvailable() const {
 
 void H3LIS331DL::writeConfig(uint8_t reg, uint8_t value) {
     uint8_t instruction = reg & 0x3F;
+    SPI.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE3)); 
     digitalWrite(_csPin, LOW);
     SPI.transfer(instruction);
     SPI.transfer(value);
     digitalWrite(_csPin, HIGH);
+    SPI.endTransaction(); 
 
     // Update sensitivity if scale (CTRL_REG4) is modified dynamically.
     if(reg == CTRL_REG4) {
@@ -62,21 +67,26 @@ void H3LIS331DL::writeConfig(uint8_t reg, uint8_t value) {
 
 uint8_t H3LIS331DL::readRegister(uint8_t reg) {
     uint8_t instruction = 0x80 | (reg & 0x3F);
+    SPI.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE3)); 
     digitalWrite(_csPin, LOW);
     SPI.transfer(instruction);
     uint8_t val = SPI.transfer(0x00);
     digitalWrite(_csPin, HIGH);
+    SPI.endTransaction(); 
     return val;
 }
 
 void H3LIS331DL::readMultipleRegisters(uint8_t reg, uint8_t* buffer, uint8_t len) {
     uint8_t instruction = 0xC0 | (reg & 0x3F);
+    SPI.beginTransaction(SPISettings(10000000, MSBFIRST, SPI_MODE3)); 
     digitalWrite(_csPin, LOW);
     SPI.transfer(instruction);
     for(uint8_t i = 0; i < len; i++) {
         buffer[i] = SPI.transfer(0x00);
     }
     digitalWrite(_csPin, HIGH);
+    SPI.endTransaction(); 
+
 }
 
 float H3LIS331DL::getSensitivityGPerLsb(uint8_t ctrlReg4) {
