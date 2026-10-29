@@ -4,6 +4,7 @@
 
 #include <Arduino.h>
 #include <cmath>
+#include <algorithm> // Přidáno pro použití std::clamp
 
 using namespace RobotConfig;
 
@@ -13,8 +14,8 @@ struct MotorPowers {
     int32_t right;
 };
 
-constexpr float MIN_SENSOR_RADIUS_METERS = 0.012f;
-constexpr float MAX_SENSOR_RADIUS_METERS = 0.018f;
+constexpr float MIN_SENSOR_RADIUS_METERS = 0.014f;
+constexpr float MAX_SENSOR_RADIUS_METERS = 0.016f;
 constexpr uint32_t LED_FLASH_DURATION_US = 500;
 constexpr uint32_t LED_MINIMUM_TIME_BETWEEN_FLASHES_US = 1000;
 
@@ -116,12 +117,26 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     lastUpdateUs_ = currentUs;
 
     const float deltaSeconds = static_cast<float>(deltaUs) * MICROSECONDS_TO_SECONDS;
-    const int32_t power = getPower(input.leftStickVertical, input.left3StateSwitch);
+    int32_t power = getPower(input.leftStickVertical, input.left3StateSwitch);
     int32_t amplitude = getPower(input.rightStickVertical, input.left3StateSwitch);
 
     if (Kinematics::getAverageZ(a1, a2) < 0.0f) {
         amplitude = -amplitude;
     }
+
+    // --- DOPLNĚNÁ MATEMATICKÁ OCHRANA (DSHOT DIRECTION GUARD) ---
+    // 1. Zabráníme protnutí nuly (zabezpečí proti desyncu při změně směru pod zátěží)
+    const int32_t absPower = std::abs(power);
+    amplitude = std::clamp(amplitude, -absPower, absPower);
+
+    // 2. Zabráníme přetečení nad PWM limit definovaný RC_OUTPUT_SCALE
+    const int32_t maxOutput = absPower + std::abs(amplitude);
+    if (maxOutput > RC_OUTPUT_SCALE) {
+        const float scale = static_cast<float>(RC_OUTPUT_SCALE) / static_cast<float>(maxOutput);
+        power = static_cast<int32_t>(power * scale);
+        amplitude = static_cast<int32_t>(amplitude * scale);
+    }
+    // ------------------------------------------------------------
 
     const float sensorRadiusMeters = calculateSensorRadiusMeters(input.leftPot);
 

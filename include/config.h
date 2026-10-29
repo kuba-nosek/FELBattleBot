@@ -22,6 +22,9 @@ constexpr uint8_t PIN_SPI_MISO = 13;
 constexpr uint8_t PIN_SPI_MOSI = 11;
 constexpr uint8_t PIN_SPI_CS1 = 9;
 constexpr uint8_t PIN_SPI_CS2 = 10;
+// Přidáno z větve 2: Piny pro Data-Ready hardwarová přerušení
+constexpr uint8_t PIN_ACCEL1_INT1 = 5;
+constexpr uint8_t PIN_ACCEL2_INT1 = 7;
 
 // ==========================================
 // 2. OTA (OVER-THE-AIR) SETTINGS
@@ -33,7 +36,7 @@ constexpr char OTA_HOSTNAME[] = "meltybrain-ota";
 // ==========================================
 // 3. RTOS THREAD TIMING
 // ==========================================
-constexpr uint32_t TASK_CONTROL_HZ = 200;
+constexpr uint32_t TASK_CONTROL_HZ = 1000;
 constexpr uint32_t TASK_RECEIVER_HZ = 500;
 constexpr uint32_t TASK_LED_HZ = 1000;
 
@@ -47,13 +50,14 @@ constexpr uint8_t MOTOR_POLE_PAIRS = 7;
 // ==========================================
 // 5. ACCELEROMETER CALIBRATION [g]
 // ==========================================
-constexpr float ACCEL1_OFFSET_X_G = 0.08f;
-constexpr float ACCEL1_OFFSET_Y_G = 0.57f;
-constexpr float ACCEL1_OFFSET_Z_G = 2.85f;
+// Správné hodnoty po opravě BDU a gravitačního offsetu (z větve 2)
+constexpr float ACCEL1_OFFSET_X_G = -2.08f;
+constexpr float ACCEL1_OFFSET_Y_G = -2.08f;
+constexpr float ACCEL1_OFFSET_Z_G = 6.00f;
 
-constexpr float ACCEL2_OFFSET_X_G = -0.30f;
-constexpr float ACCEL2_OFFSET_Y_G = 0.15f;
-constexpr float ACCEL2_OFFSET_Z_G = 1.94f;
+constexpr float ACCEL2_OFFSET_X_G = -0.89f;
+constexpr float ACCEL2_OFFSET_Y_G = -0.34f;
+constexpr float ACCEL2_OFFSET_Z_G = 1.76f;
 
 // ==========================================
 // 6. RC & SIGNAL PROCESSING
@@ -86,7 +90,8 @@ constexpr uint16_t LED_STRIP_LED_COUNT = 14;
 constexpr uint16_t LED_STRIP_SPIN_LED_COUNT = LED_STRIP_LED_COUNT / 2;
 constexpr uint8_t LED_STRIP_SECTORS_PER_LED = 3;
 constexpr uint16_t LED_STRIP_SECTOR_COUNT = LED_STRIP_LED_COUNT * LED_STRIP_SECTORS_PER_LED;
-constexpr uint16_t LED_STRIP_REFRESH_HZ = 500;
+// Zachována vyšší hodnota 1200 Hz z větve 2 pro čistší obraz při rotaci
+constexpr uint16_t LED_STRIP_REFRESH_HZ = 1200;
 constexpr uint8_t LED_STRIP_BRIGHTNESS = 32;
 
 // ==========================================

@@ -39,6 +39,24 @@ void mainThread(void* pvParameters);
 void ReceiverThread(void* pvParameters);
 void LEDThread(void* pvParameters);
 void LoggerStorageThread(void* pvParameters);
+void accelThread(void* pvParameters);
+
+// Globální handle pro notifikace
+TaskHandle_t accelTaskHandle = nullptr;
+TaskHandle_t mainTaskHandle = nullptr;
+
+// ISR funkce musí být v IRAM (nesmí se stránkovat z flash paměti)
+void IRAM_ATTR accel1_isr() {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(accelTaskHandle, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
+}
+
+void IRAM_ATTR accel2_isr() {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(accelTaskHandle, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
+}
 
 // --- Safety failsafe callback ---
 void onFailsafe() {
@@ -126,7 +144,6 @@ void setup() {
     dataLogger.begin();
 
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
-    SPI.beginTransaction(SPISettings(100000, MSBFIRST, SPI_MODE0));
 
     indicator.init();
     povDisplay.init();
@@ -149,7 +166,7 @@ void setup() {
     bool accel1ok = accel1.init();
     bool accel2ok = accel2.init();
 
-    hardwareOk &= accel1ok && accel2ok;
+    hardwareOk &= (accel1ok && accel2ok);
 
     if(!hardwareOk) {
         indicator.setIndication(LEDIndication::HardwareError);
@@ -163,18 +180,29 @@ void setup() {
         }
     }
 
+    pinMode(PIN_ACCEL1_INT1, INPUT);
+    pinMode(PIN_ACCEL2_INT1, INPUT);
+
     robot.hw.leftMotor = &motorLeft;
     robot.hw.rightMotor = &motorRight;
     robot.hw.rx = &receiver;
     robot.hw.indicator = &indicator;
     robot.hw.povDisplay = &povDisplay;
 
-    // Spawn FreeRTOS tasks pinned to respective cores
-    xTaskCreatePinnedToCore(mainThread, "ControlLoop", 8192, NULL, 3, NULL, 0);
-    xTaskCreatePinnedToCore(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL, 1);
-    xTaskCreatePinnedToCore(LEDThread, "LED_Control", 2048, NULL, 1, NULL, 1);
+    // --- Jádro 0 (PRO_CPU): Rozhodování, pohyb a komunikace ---
+    xTaskCreatePinnedToCore(mainThread, "ControlLoop", 8192, NULL, 3, &mainTaskHandle, 0);
+    xTaskCreatePinnedToCore(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL, 0);
+
+    // --- Jádro 1 (APP_CPU): Senzory, logger a vizuální periferie (včetně ISR) ---
+    xTaskCreatePinnedToCore(accelThread, "IMU_Task", 4096, nullptr, 4, &accelTaskHandle, 1);
     xTaskCreatePinnedToCore(LoggerStorageThread, "LogStorage", 4096, NULL, 1, NULL, 1);
-}   
+    xTaskCreatePinnedToCore(LEDThread, "LED_Control", 2048, NULL, 1, NULL, 1);
+
+    attachInterrupt(digitalPinToInterrupt(PIN_ACCEL1_INT1), accel1_isr, RISING);
+    attachInterrupt(digitalPinToInterrupt(PIN_ACCEL2_INT1), accel2_isr, RISING);
+
+    xTaskNotifyGive(accelTaskHandle);
+}
 
 void loop() {
     vTaskDelete(NULL);
@@ -185,14 +213,14 @@ void loop() {
 // ====================================================================
 
 void mainThread(void* pvParameters) {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_CONTROL_HZ);
-
     modeHandler.update(robot);
     bool wasConnected = false;
     uint32_t idleSinceMs = 0; //after enough time in idle mode - starts flashing
 
     while(true) {
+        // Blokování smyčky čekáním na data od akcelerometru
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
         robot.state.currentMs = millis();
         robot.state.isConnected = receiver.isConnected();
 
@@ -217,17 +245,6 @@ void mainThread(void* pvParameters) {
 
         // CH7: right 3-position switch, trigger only on a LOW -> HIGH transition.
         dataLogger.updateTrigger(robot.state.isConnected, input.right3StateSwitch == 1);
-
-        if(accel1.isAvailable()) {
-            AccelData temp;
-            accel1.readData(temp);
-            robot.state.accel1 = temp;
-        }
-        if(accel2.isAvailable()) {
-            AccelData temp;
-            accel2.readData(temp);
-            robot.state.accel2 = temp;
-        }
 
         const bool modeChanged = modeHandler.update(robot);
         IRobotMode* currentMode = modeHandler.getCurrentMode();
@@ -259,6 +276,7 @@ void mainThread(void* pvParameters) {
 
         // Fast RAM-only sampling. No Serial or filesystem calls here.
         dataLogger.capture(robot, input, micros());
+        
         // Flash operations are permitted only after the motors have remained
         // in Idle for a short settling interval.
         const uint32_t nowMs = millis();
@@ -269,8 +287,6 @@ void mainThread(void* pvParameters) {
             idleSinceMs = 0;
             dataLogger.setSafeToSave(false);
         }
-
-        vTaskDelayUntil(&xLastWakeTime, taskPeriod);
     }
 }
 
@@ -306,5 +322,26 @@ void LoggerStorageThread(void* pvParameters) {
     while (true) {
         dataLogger.service();
         vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+// accelerometer data readout
+void accelThread(void* pvParameters) {
+    while(true) {
+        // Vlákno zde spí a nekonzumuje žádný CPU čas. 
+        // Probudí se okamžitě, jakmile jakýkoliv ISR zavolá vTaskNotifyGiveFromISR.
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        AccelData temp1, temp2;
+        
+        accel1.readData(temp1); 
+        robot.state.accel1 = temp1; // Zápis přes bezpečný ThreadSafe wrapper
+
+        accel2.readData(temp2);
+        robot.state.accel2 = temp2;
+
+        if (mainTaskHandle != nullptr) {
+            xTaskNotifyGive(mainTaskHandle);
+        }
     }
 }
