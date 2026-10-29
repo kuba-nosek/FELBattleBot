@@ -13,9 +13,9 @@ struct MotorPowers {
     int32_t right;
 };
 
-constexpr float MIN_SENSOR_RADIUS_METERS = 0.028f;
-constexpr float MAX_SENSOR_RADIUS_METERS = 0.036f;
-constexpr uint32_t LED_FLASH_DURATION_US = 500;
+constexpr float MIN_SENSOR_RADIUS_METERS = 0.014f;
+constexpr float MAX_SENSOR_RADIUS_METERS = 0.016f;
+constexpr uint32_t LED_FLASH_DURATION_US = 250;
 constexpr uint32_t LED_MINIMUM_TIME_BETWEEN_FLASHES_US = 1000;
 
 constexpr float TWO_PI_RADIANS = 6.28318530718f;

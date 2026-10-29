@@ -47,13 +47,13 @@ constexpr uint8_t MOTOR_POLE_PAIRS = 7;
 // ==========================================
 // 5. ACCELEROMETER CALIBRATION [g]
 // ==========================================
-constexpr float ACCEL1_OFFSET_X_G = 0.08f;
-constexpr float ACCEL1_OFFSET_Y_G = 0.57f;
-constexpr float ACCEL1_OFFSET_Z_G = 2.85f;
+constexpr float ACCEL1_OFFSET_X_G = -2.08f;
+constexpr float ACCEL1_OFFSET_Y_G = -2.08f;
+constexpr float ACCEL1_OFFSET_Z_G = 6.00f;
 
-constexpr float ACCEL2_OFFSET_X_G = -0.30f;
-constexpr float ACCEL2_OFFSET_Y_G = 0.15f;
-constexpr float ACCEL2_OFFSET_Z_G = 1.94f;
+constexpr float ACCEL2_OFFSET_X_G = -0.89f;
+constexpr float ACCEL2_OFFSET_Y_G = -0.34f;
+constexpr float ACCEL2_OFFSET_Z_G = 1.76f;
 
 // ==========================================
 // 6. RC & SIGNAL PROCESSING

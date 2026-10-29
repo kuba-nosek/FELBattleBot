@@ -143,7 +143,7 @@ void setup() {
     bool accel1ok = accel1.init();
     bool accel2ok = accel2.init();
 
-    hardwareOk &= (accel1ok);
+    hardwareOk &= (accel1ok && accel2ok);
 
     if(!hardwareOk) {
         indicator.setIndication(LEDIndication::HardwareError);
