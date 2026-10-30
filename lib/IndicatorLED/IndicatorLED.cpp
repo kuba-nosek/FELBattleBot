@@ -62,6 +62,9 @@ void IndicatorLED::playAnimation(LEDAnimation mode) {
         case LEDAnimation::TelemetrySent:
             _animationDurationMs = 100;
             break;
+        case LEDAnimation::LogSaved:
+            _animationDurationMs = 850;
+            break;
         default:
             _animationDurationMs = 1000;
             break;
@@ -162,6 +165,12 @@ void IndicatorLED::update() {
             case LEDAnimation::TelemetrySent:
                 // Single quick pulse: 50ms ON, then OFF
                 shouldLight = (elapsed < 50);
+                break;
+            case LEDAnimation::LogSaved:
+                // Three distinct confirmation flashes: 100 ms on at 0/250/500 ms.
+                shouldLight = (elapsed < 100) ||
+                              (elapsed >= 250 && elapsed < 350) ||
+                              (elapsed >= 500 && elapsed < 600);
                 break;
             default:
                 // Solid ON

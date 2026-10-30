@@ -20,7 +20,8 @@ enum class LEDAnimation : uint8_t {
     Bootup,
     ModeChanged,
     ErrorAlert,
-    TelemetrySent
+    TelemetrySent,
+    LogSaved // Three pulses after LittleFS successfully saves a capture
 };
 
 class IndicatorLED {

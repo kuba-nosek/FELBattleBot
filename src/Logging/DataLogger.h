@@ -12,16 +12,21 @@ class DataLogger {
 public:
     bool begin();
 
-    // Called only by the existing 200 Hz ControlLoop task.
+    // ControlLoop: acquisition only, never write flash here.
     void updateTrigger(bool receiverConnected, bool triggerHigh);
     void capture(const RobotCore& robot, const ReceiverInput& input, uint32_t nowUs);
     void setSafeToSave(bool safe);
 
-    // Called only by a low-priority task. Never from ControlLoop.
+    // LoggerStorageThread only.
     void service();
 
     bool hasUnsavedData() const;
     bool isBusy() const;
+
+    // ControlLoop polls this counter to trigger a one-shot LED confirmation.
+    uint32_t completedSaves() const {
+        return completedSaves_.load(std::memory_order_acquire);
+    }
 
 private:
     enum class State : uint8_t { Idle, Recording, PendingSave, Saving };
@@ -41,21 +46,30 @@ private:
 
     std::atomic<State> state_{State::Idle};
     std::atomic<bool> safeToSave_{false};
+    std::atomic<uint32_t> completedSaves_{0};
 
-    // Sample buffer belongs to the control task until state becomes PendingSave.
     Sample* samples_ = nullptr;
     size_t count_ = 0;
     uint32_t startedUs_ = 0;
     uint32_t lastSaveAttemptMs_ = 0;
-    bool triggerArmed_ = false; // Require a LOW before the first HIGH.
+    bool triggerArmed_ = false;
     bool mounted_ = false;
 
-    // USB console state belongs exclusively to the service task.
-    char command_[20]{};
+    // Accessed only from setup() or LoggerStorageThread.
+    uint32_t nextLogId_ = 1;
+    uint32_t latestLogId_ = 0;
+
+    char command_[32]{};
     size_t commandLength_ = 0;
+
+    static void fileNameFor(uint32_t id, char* path, size_t pathSize);
+    static uint32_t parseLogId(const char* name);
+    uint32_t scanLogs(size_t* count = nullptr);
 
     bool saveCsv();
     void pollSerial();
     void handleCommand(const char* command);
-    void dumpLastLog();
+    void listLogs();
+    void dumpLog(uint32_t id);
+    void deleteLog(uint32_t id);
 };
