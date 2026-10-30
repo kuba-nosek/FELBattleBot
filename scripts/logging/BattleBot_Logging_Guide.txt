@@ -1,0 +1,58 @@
+BattleBot - Logging Guide (ESP32-S3)
+===================================
+
+1. CONNECT TO ESP32 VIA USB (macOS)
+
+Find the serial port:
+    ls /dev/cu.usb*
+
+Open the serial monitor (replace the port if different):
+    python3 -m serial.tools.miniterm /dev/cu.usbmodem101 115200
+
+Exit the serial monitor with Ctrl+].
+
+2. INITIALIZE LittleFS (FIRST TIME ONLY)
+
+Send in the serial monitor:
+    STATUS
+
+If mounted=0, send:
+    FORMAT
+
+Then send STATUS again. You want mounted=1.
+Do NOT format on every startup: FORMAT erases saved recordings.
+
+3. RECORD DATA
+
+- Power on the robot and connect ELRS.
+- Move the right 3-position RC switch (CH7) from LOW to HIGH.
+- Logging automatically runs for 5 seconds.
+- Switch the robot into Idle.
+- After at least ~400 ms in Idle, the logger saves RAM data
+  to LittleFS as /capture.csv.
+- Do not disconnect power until the save is complete.
+
+4. DOWNLOAD CSV TO MAC
+
+Close the serial monitor first.
+From the FELBattleBot project directory, run:
+    python3 scripts/download_log.py /dev/cu.usbmodem101 capture.csv
+
+The file is saved in the terminal's current directory.
+To open it:
+    open capture.csv
+
+5. CHANGE LOGGING CONFIGURATION
+
+Edit src/Logging/LogFields.h to choose the variables recorded.
+To change the recording duration, edit:
+    constexpr uint32_t LOG_DURATION_MS = 5000;
+
+NOTES
+
+- Data logging runs in the 200 Hz control loop; accelerometer ODR may
+  still be 50 Hz, so consecutive logged readings may repeat.
+- The next successfully saved recording replaces the previous capture.csv.
+- DUMP sends the saved data over serial without deleting it.
+- FORMAT erases stored logs.
+- Saved data survives restarts and normal OTA firmware updates.
