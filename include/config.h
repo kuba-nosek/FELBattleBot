@@ -81,6 +81,8 @@ constexpr uint16_t RC_SWITCH_HIGH_THRESHOLD = 1700;
 // ==========================================
 constexpr int32_t FORWARD_MAX_MOVING_TURN_PERCENT = 40;
 constexpr int32_t FORWARD_MAX_STANDING_TURN_POWER = 50;
+// Reserve 20% of spin power to keep both motors in their original direction.
+constexpr float SPIN_MAX_TRANSLATION_RATIO = 0.8f;
 
 // ==========================================
 // 8. POV LED STRIP

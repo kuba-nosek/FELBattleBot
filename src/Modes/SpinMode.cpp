@@ -28,6 +28,9 @@ constexpr float SECONDS_TO_MICROSECONDS = 1000000.0f;
 static_assert(MIN_SENSOR_RADIUS_METERS > 0.0f && MAX_SENSOR_RADIUS_METERS >= MIN_SENSOR_RADIUS_METERS,
               "Sensor radius range must be positive");
 
+static_assert(SPIN_MAX_TRANSLATION_RATIO >= 0.0f && SPIN_MAX_TRANSLATION_RATIO < 1.0f,
+              "Spin translation ratio must be in the range [0, 1)");
+
 float wrapRadians(float angleRadians) {
     const float wrapped = std::fmod(angleRadians, TWO_PI_RADIANS);
     return wrapped < 0.0f ? wrapped + TWO_PI_RADIANS : wrapped;
@@ -74,9 +77,43 @@ int32_t getPower(int32_t rawPower, int switchPosition) {
     }
 }
 
-MotorPowers calculateMotorPowers(int32_t power, int32_t amplitude, float headingRadians) {
-    const float modulation = std::sin(headingRadians);
-    const int32_t wave = static_cast<int32_t>(std::lround(static_cast<float>(amplitude) * modulation));
+void limitTranslationAmplitude(int32_t power, int32_t& forwardAmplitude, int32_t& lateralAmplitude) {
+    // Limit the combined translation vector, not each axis separately.
+    const float amplitude = std::hypot(static_cast<float>(forwardAmplitude),
+                                       static_cast<float>(lateralAmplitude));
+    const float maxAmplitude = static_cast<float>(std::abs(power)) * SPIN_MAX_TRANSLATION_RATIO;
+
+    // Keep modulation smaller than spin power, preventing motor direction reversals.
+    if (amplitude > maxAmplitude) {
+        const float scale = maxAmplitude / amplitude;
+        forwardAmplitude = static_cast<int32_t>(forwardAmplitude * scale);
+        lateralAmplitude = static_cast<int32_t>(lateralAmplitude * scale);
+    }
+}
+
+void limitTranslation(int32_t& power, int32_t& forwardAmplitude, int32_t& lateralAmplitude) {
+    limitTranslationAmplitude(power, forwardAmplitude, lateralAmplitude);
+
+    // Scale all three values together when the motor commands could exceed +/-1000.
+    const float maxOutput = static_cast<float>(std::abs(power)) +
+                            std::hypot(static_cast<float>(forwardAmplitude),
+                                       static_cast<float>(lateralAmplitude));
+    if (maxOutput > RC_OUTPUT_SCALE) {
+        const float scale = static_cast<float>(RC_OUTPUT_SCALE) / maxOutput;
+        power = static_cast<int32_t>(power * scale);
+        forwardAmplitude = static_cast<int32_t>(forwardAmplitude * scale);
+        lateralAmplitude = static_cast<int32_t>(lateralAmplitude * scale);
+        // Truncating spin power can slightly reduce the safety margin.
+        limitTranslationAmplitude(power, forwardAmplitude, lateralAmplitude);
+    }
+}
+
+MotorPowers calculateMotorPowers(int32_t power, int32_t forwardAmplitude, int32_t lateralAmplitude,
+                                 float headingRadians) {
+    // Two 90-degree shifted components give independent forward and sideways translation.
+    const float modulation = static_cast<float>(forwardAmplitude) * std::sin(headingRadians) +
+                             static_cast<float>(lateralAmplitude) * std::cos(headingRadians);
+    const int32_t wave = static_cast<int32_t>(std::lround(modulation));
 
     return {power + wave, -power + wave};
 }
@@ -118,25 +155,17 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
 
     const float deltaSeconds = static_cast<float>(deltaUs) * MICROSECONDS_TO_SECONDS;
     int32_t power = getPower(input.leftStickVertical, input.left3StateSwitch);
-    int32_t amplitude = getPower(input.rightStickVertical, input.left3StateSwitch);
+    
+    //amplitude for forward and side
+    int32_t forwardAmplitude = getPower(input.rightStickVertical, input.left3StateSwitch);
+    int32_t lateralAmplitude = getPower(input.leftStickHorizontal, input.left3StateSwitch);
 
     if (Kinematics::getAverageZ(a1, a2) < 0.0f) {
-        amplitude = -amplitude;
+        forwardAmplitude = -forwardAmplitude;
+        lateralAmplitude = -lateralAmplitude;
     }
 
-    // --- DOPLNĚNÁ MATEMATICKÁ OCHRANA (DSHOT DIRECTION GUARD) ---
-    // 1. Zabráníme protnutí nuly (zabezpečí proti desyncu při změně směru pod zátěží)
-    const int32_t absPower = std::abs(power);
-    amplitude = std::clamp(amplitude, -absPower, absPower);
-
-    // 2. Zabráníme přetečení nad PWM limit definovaný RC_OUTPUT_SCALE
-    const int32_t maxOutput = absPower + std::abs(amplitude);
-    if (maxOutput > RC_OUTPUT_SCALE) {
-        const float scale = static_cast<float>(RC_OUTPUT_SCALE) / static_cast<float>(maxOutput);
-        power = static_cast<int32_t>(power * scale);
-        amplitude = static_cast<int32_t>(amplitude * scale);
-    }
-    // ------------------------------------------------------------
+    limitTranslation(power, forwardAmplitude, lateralAmplitude);
 
     const float sensorRadiusMeters = calculateSensorRadiusMeters(input.leftPot);
 
@@ -169,8 +198,11 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     const float correctedHeadingRadians = wrapRadians(combinedHeadingRadians);
     const float correctedAngularSpeedRadPerSec = spinDirection_ * angularSpeedRadPerSec_ + headingChangeSpeedRadPerSec;
 
-    if(power == 0) amplitude = 0;
-    const MotorPowers motorPowers = calculateMotorPowers(power, amplitude, correctedHeadingRadians);
+    if(power == 0) {
+        forwardAmplitude = 0;
+        lateralAmplitude = 0;
+    }
+    const MotorPowers motorPowers = calculateMotorPowers(power, forwardAmplitude, lateralAmplitude, correctedHeadingRadians);
 
     robot.hw.leftMotor->setSpeed(static_cast<int16_t>(motorPowers.left), currentMs);
     robot.hw.rightMotor->setSpeed(static_cast<int16_t>(motorPowers.right), currentMs);
