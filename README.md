@@ -94,8 +94,8 @@ potentiometer selects the IMU radius[span_13](start_span)[span_13](end_span). Th
 translation amplitude[span_14](start_span)[span_14](end_span). The right potentiometer sets a constant heading offset,
 mapping its full range to `-π..+π`[span_15](start_span)[span_15](end_span). Holding the right horizontal stick continuously
 changes a separate variable heading offset at up to one revolution per second;
-that offset remains fixed when the stick is released[span_16](start_span)[span_16](end_span). The combined offset drives
-both motor modulation and the directional LED flash[span_17](start_span)[span_17](end_span).
+that offset remains fixed when the stick is released[span_16](start_span)[span_16](end_span). The variable offset drives
+motor translation. The right potentiometer shifts only the directional LED flash so it can be aligned with the resulting motion.
 
 ---
 
