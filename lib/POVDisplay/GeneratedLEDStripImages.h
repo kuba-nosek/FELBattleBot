@@ -22,17 +22,34 @@ enum class LEDStripAnimation : uint8_t {
 };
 
 namespace LEDStripImages {
-constexpr uint16_t GENERATED_FULL_LED_COUNT = 14;
-constexpr uint16_t GENERATED_SPIN_LED_COUNT = 7;
-constexpr uint16_t GENERATED_SECTOR_COUNT = 42;
+constexpr uint16_t GENERATED_LED_COUNT = 10;
+constexpr uint16_t GENERATED_SECTOR_COUNT = 96;
 constexpr uint8_t GENERATED_USER_IMAGE_COUNT = 4;
 
-static_assert(RobotConfig::LED_STRIP_LED_COUNT == GENERATED_FULL_LED_COUNT,
+static_assert(RobotConfig::LED_STRIP_LED_COUNT == GENERATED_LED_COUNT,
               "Regenerate the LED-strip images after changing LED_STRIP_LED_COUNT");
-static_assert(RobotConfig::LED_STRIP_SPIN_LED_COUNT == GENERATED_SPIN_LED_COUNT,
-              "Regenerate the LED-strip images after changing the spin LED count");
 static_assert(RobotConfig::LED_STRIP_SECTOR_COUNT == GENERATED_SECTOR_COUNT,
               "Regenerate the LED-strip images after changing the strip sector count");
+static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[0] == 1,
+              "Regenerate the LED-strip images after changing sector divisor 0");
+static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[1] == 1,
+              "Regenerate the LED-strip images after changing sector divisor 1");
+static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[2] == 1,
+              "Regenerate the LED-strip images after changing sector divisor 2");
+static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[3] == 1,
+              "Regenerate the LED-strip images after changing sector divisor 3");
+static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[4] == 2,
+              "Regenerate the LED-strip images after changing sector divisor 4");
+static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[5] == 2,
+              "Regenerate the LED-strip images after changing sector divisor 5");
+static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[6] == 4,
+              "Regenerate the LED-strip images after changing sector divisor 6");
+static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[7] == 4,
+              "Regenerate the LED-strip images after changing sector divisor 7");
+static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[8] == 8,
+              "Regenerate the LED-strip images after changing sector divisor 8");
+static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[9] == 16,
+              "Regenerate the LED-strip images after changing sector divisor 9");
 
 inline LEDStripAnimation animationForSpinSwitchPosition(uint8_t position) {
     switch(position) {

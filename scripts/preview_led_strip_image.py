@@ -18,8 +18,8 @@ except ImportError:
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GENERATED_SOURCE_PATH = ROOT / "lib" / "LEDHandler" / "GeneratedLEDStripImages.cpp"
-GENERATED_HEADER_PATH = ROOT / "lib" / "LEDHandler" / "GeneratedLEDStripImages.h"
+GENERATED_SOURCE_PATH = ROOT / "lib" / "POVDisplay" / "GeneratedLEDStripImages.cpp"
+GENERATED_HEADER_PATH = ROOT / "lib" / "POVDisplay" / "GeneratedLEDStripImages.h"
 CONFIG_PATH = ROOT / "include" / "config.h"
 DEFAULT_OUTPUT_DIRECTORY = ROOT / ".pio" / "led-strip-previews"
 
@@ -36,7 +36,7 @@ def read_generated_arrays(source_path=GENERATED_SOURCE_PATH):
     source = source_path.read_text(encoding="utf-8")
     array_pattern = re.compile(
         r"constexpr\s+uint32_t\s+(\w+)Pixels\s*"
-        r"\[GENERATED_SECTOR_COUNT\]\[GENERATED_SPIN_LED_COUNT\]\s*=\s*\{(.*?)\n\};",
+        r"\[GENERATED_SECTOR_COUNT\]\[GENERATED_LED_COUNT\]\s*=\s*\{(.*?)\n\};",
         re.DOTALL,
     )
     row_pattern = re.compile(r"\{([^{}]+)\}")
@@ -57,7 +57,7 @@ def read_generated_arrays(source_path=GENERATED_SOURCE_PATH):
 
 def validate_dimensions(arrays, header_path=GENERATED_HEADER_PATH):
     expected_sector_count = read_integer_constant(header_path, "GENERATED_SECTOR_COUNT")
-    expected_led_count = read_integer_constant(header_path, "GENERATED_SPIN_LED_COUNT")
+    expected_led_count = read_integer_constant(header_path, "GENERATED_LED_COUNT")
 
     for name, sectors in arrays.items():
         if len(sectors) != expected_sector_count:

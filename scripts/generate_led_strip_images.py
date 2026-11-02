@@ -25,6 +25,7 @@ HEADER_PATH = ROOT / "lib" / "POVDisplay" / "GeneratedLEDStripImages.h"
 SOURCE_PATH = ROOT / "lib" / "POVDisplay" / "GeneratedLEDStripImages.cpp"
 SUPPORTED_EXTENSIONS = {".jpeg", ".jpg", ".png"}
 MAX_USER_IMAGES = 4
+ANGULAR_SAMPLES_PER_SECTOR = 4
 FIXED_ANIMATIONS = [
     "Off",
     "Bootup",
@@ -45,16 +46,31 @@ def read_integer_constant(config_path, name):
     return int(match.group(1))
 
 
+def read_integer_array_constant(config_path, name):
+    text = config_path.read_text(encoding="utf-8")
+    match = re.search(
+        rf"^\s*constexpr\s+\w+\s+{re.escape(name)}\s*\[[^]]+\]\s*=\s*\{{([^}}]+)\}}\s*;",
+        text,
+        re.MULTILINE,
+    )
+    if not match:
+        raise RuntimeError(f"Could not read numeric array {name} from {config_path}")
+    return [int(value) for value in re.findall(r"\d+", match.group(1))]
+
+
 def read_dimensions(config_path=CONFIG_PATH):
     led_count = read_integer_constant(config_path, "LED_STRIP_LED_COUNT")
-    sectors_per_led = read_integer_constant(config_path, "LED_STRIP_SECTORS_PER_LED")
+    sector_count = read_integer_constant(config_path, "LED_STRIP_SECTOR_COUNT")
+    sector_divisors = read_integer_array_constant(config_path, "LED_STRIP_SECTOR_DIVISORS")
     if led_count < 2:
         raise RuntimeError("LED_STRIP_LED_COUNT must be at least 2")
-    if led_count % 2 != 0:
-        raise RuntimeError("LED_STRIP_LED_COUNT must be even for the half-strip POV layout")
-    if sectors_per_led < 1:
-        raise RuntimeError("LED_STRIP_SECTORS_PER_LED must be at least 1")
-    return led_count, led_count // 2, led_count * sectors_per_led
+    if sector_count < 1:
+        raise RuntimeError("LED_STRIP_SECTOR_COUNT must be at least 1")
+    if len(sector_divisors) != led_count:
+        raise RuntimeError("LED_STRIP_SECTOR_DIVISORS must contain one value per LED")
+    if any(divisor < 1 or sector_count % divisor != 0 for divisor in sector_divisors):
+        raise RuntimeError("Every LED strip sector divisor must be positive and divide LED_STRIP_SECTOR_COUNT")
+    return led_count, sector_count, sector_divisors
 
 
 def filename_to_enum(path):
@@ -90,60 +106,105 @@ def discover_images(asset_directory=ASSET_DIRECTORY):
     return named_images
 
 
-def sample_image(path, spin_led_count, sector_count):
+def sample_image_color(image, x, y):
+    width, height = image.size
+    x = max(0.0, min(width - 1.0, x))
+    y = max(0.0, min(height - 1.0, y))
+    x0 = math.floor(x)
+    y0 = math.floor(y)
+    x1 = min(x0 + 1, width - 1)
+    y1 = min(y0 + 1, height - 1)
+    x_fraction = x - x0
+    y_fraction = y - y0
+    samples = (
+        (image.getpixel((x0, y0)), (1.0 - x_fraction) * (1.0 - y_fraction)),
+        (image.getpixel((x1, y0)), x_fraction * (1.0 - y_fraction)),
+        (image.getpixel((x0, y1)), (1.0 - x_fraction) * y_fraction),
+        (image.getpixel((x1, y1)), x_fraction * y_fraction),
+    )
+
+    channels = []
+    for channel in range(3):
+        channels.append(sum(pixel[channel] * pixel[3] / 255.0 * weight for pixel, weight in samples))
+    return channels
+
+
+def average_angular_color(group_start, group_width, sector_count, color_at_angle):
+    sample_count = ANGULAR_SAMPLES_PER_SECTOR * group_width
+    totals = [0.0, 0.0, 0.0]
+
+    for sample in range(sample_count):
+        sector_position = group_start + (sample + 0.5) * group_width / sample_count
+        angle = 2.0 * math.pi * sector_position / sector_count - math.pi / 2.0
+        color = color_at_angle(angle)
+        for channel in range(3):
+            totals[channel] += color[channel]
+
+    channels = [round(total / sample_count) for total in totals]
+    return (channels[0] << 16) | (channels[1] << 8) | channels[2]
+
+
+def sample_image(path, led_count, sector_count, sector_divisors=None):
+    if sector_divisors is None:
+        sector_divisors = [1] * led_count
+
     image = Image.open(path).convert("RGBA")
     width, height = image.size
-    center_x = width / 2.0
-    center_y = height / 2.0
-    maximum_radius_leds = spin_led_count - 0.5
+    center_x = (width - 1) / 2.0
+    center_y = (height - 1) / 2.0
+    maximum_radius_leds = led_count - 0.5
     scale = min(center_x, center_y) / maximum_radius_leds
-    sectors = []
+    sectors = [[0] * led_count for _ in range(sector_count)]
 
-    for sector in range(sector_count):
-        angle = 2.0 * math.pi * sector / sector_count - math.pi / 2.0
-        pixels = []
-        for led in range(spin_led_count):
-            radius_leds = maximum_radius_leds - led
-            x = int(center_x + radius_leds * scale * math.cos(angle))
-            y = int(center_y + radius_leds * scale * math.sin(angle))
-            x = max(0, min(width - 1, x))
-            y = max(0, min(height - 1, y))
-            red, green, blue, alpha = image.getpixel((x, y))
-            red = red * alpha // 255
-            green = green * alpha // 255
-            blue = blue * alpha // 255
-            pixels.append((red << 16) | (green << 8) | blue)
-        sectors.append(pixels)
+    for led in range(led_count):
+        radius_leds = maximum_radius_leds - led
+        divisor = sector_divisors[led]
+
+        def color_at_angle(angle):
+            x = center_x + radius_leds * scale * math.cos(angle)
+            y = center_y + radius_leds * scale * math.sin(angle)
+            return sample_image_color(image, x, y)
+
+        for group_start in range(0, sector_count, divisor):
+            color = average_angular_color(group_start, divisor, sector_count, color_at_angle)
+            for sector in range(group_start, group_start + divisor):
+                sectors[sector][led] = color
     return sectors
 
 
-def make_test_pattern(spin_led_count, sector_count):
-    maximum_radius = spin_led_count - 0.5
-    sectors = []
+def make_test_pattern(led_count, sector_count, sector_divisors=None):
+    if sector_divisors is None:
+        sector_divisors = [1] * led_count
 
-    for sector in range(sector_count):
-        angle = 2.0 * math.pi * sector / sector_count - math.pi / 2.0
-        pixels = []
-        for led in range(spin_led_count):
-            radius = (maximum_radius - led) / maximum_radius
+    maximum_radius = led_count - 0.5
+    sectors = [[0] * led_count for _ in range(sector_count)]
+
+    for led in range(led_count):
+        radius = (maximum_radius - led) / maximum_radius
+        divisor = sector_divisors[led]
+
+        def color_at_angle(angle):
             x = radius * math.cos(angle)
             y = radius * math.sin(angle)
 
             if abs(x) < 0.06 or abs(y) < 0.06:
-                color = 0xFFFFFF
-            elif 0.43 < radius < 0.58:
-                color = 0x00FFFF
-            else:
-                hue = (math.atan2(y, x) / (2.0 * math.pi)) % 1.0
-                red, green, blue = colorsys.hsv_to_rgb(hue, 1.0, 0.55)
-                color = (round(red * 255) << 16) | (round(green * 255) << 8) | round(blue * 255)
-            pixels.append(color)
-        sectors.append(pixels)
+                return (255, 255, 255)
+            if 0.43 < radius < 0.58:
+                return (0, 255, 255)
+
+            hue = (math.atan2(y, x) / (2.0 * math.pi)) % 1.0
+            red, green, blue = colorsys.hsv_to_rgb(hue, 1.0, 0.55)
+            return (round(red * 255), round(green * 255), round(blue * 255))
+
+        for group_start in range(0, sector_count, divisor):
+            color = average_angular_color(group_start, divisor, sector_count, color_at_angle)
+            for sector in range(group_start, group_start + divisor):
+                sectors[sector][led] = color
     return sectors
 
 
 def render_array(name, sectors):
-    lines = [f"constexpr uint32_t {name}Pixels[GENERATED_SECTOR_COUNT][GENERATED_SPIN_LED_COUNT] = {{"]
+    lines = [f"constexpr uint32_t {name}Pixels[GENERATED_SECTOR_COUNT][GENERATED_LED_COUNT] = {{"]
     for pixels in sectors:
         values = ", ".join(f"0x{pixel:06X}" for pixel in pixels)
         lines.append(f"    {{{values}}},")
@@ -165,13 +226,20 @@ def render_switch_cases(images):
 
 
 def render_files(config_path=CONFIG_PATH, asset_directory=ASSET_DIRECTORY):
-    led_count, spin_led_count, sector_count = read_dimensions(config_path)
+    led_count, sector_count, sector_divisors = read_dimensions(config_path)
     images = discover_images(asset_directory)
-    image_data = [("TestPattern", make_test_pattern(spin_led_count, sector_count))]
-    image_data.extend((name, sample_image(path, spin_led_count, sector_count)) for name, path in images)
+    image_data = [("TestPattern", make_test_pattern(led_count, sector_count, sector_divisors))]
+    image_data.extend(
+        (name, sample_image(path, led_count, sector_count, sector_divisors)) for name, path in images
+    )
     enum_names = FIXED_ANIMATIONS + [name for name, _ in images]
 
     enum_lines = ",\n    ".join(f"{name} = {index}" for index, name in enumerate(enum_names))
+    divisor_assertions = "\n".join(
+        f"static_assert(RobotConfig::LED_STRIP_SECTOR_DIVISORS[{index}] == {divisor},\n"
+        f"              \"Regenerate the LED-strip images after changing sector divisor {index}\");"
+        for index, divisor in enumerate(sector_divisors)
+    )
     header = f"""#pragma once
 
 // Generated by scripts/generate_led_strip_images.py. Do not edit manually.
@@ -185,17 +253,15 @@ enum class LEDStripAnimation : uint8_t {{
 }};
 
 namespace LEDStripImages {{
-constexpr uint16_t GENERATED_FULL_LED_COUNT = {led_count};
-constexpr uint16_t GENERATED_SPIN_LED_COUNT = {spin_led_count};
+constexpr uint16_t GENERATED_LED_COUNT = {led_count};
 constexpr uint16_t GENERATED_SECTOR_COUNT = {sector_count};
 constexpr uint8_t GENERATED_USER_IMAGE_COUNT = {len(images)};
 
-static_assert(RobotConfig::LED_STRIP_LED_COUNT == GENERATED_FULL_LED_COUNT,
+static_assert(RobotConfig::LED_STRIP_LED_COUNT == GENERATED_LED_COUNT,
               \"Regenerate the LED-strip images after changing LED_STRIP_LED_COUNT\");
-static_assert(RobotConfig::LED_STRIP_SPIN_LED_COUNT == GENERATED_SPIN_LED_COUNT,
-              \"Regenerate the LED-strip images after changing the spin LED count\");
 static_assert(RobotConfig::LED_STRIP_SECTOR_COUNT == GENERATED_SECTOR_COUNT,
               \"Regenerate the LED-strip images after changing the strip sector count\");
+{divisor_assertions}
 
 inline LEDStripAnimation animationForSpinSwitchPosition(uint8_t position) {{
     switch(position) {{

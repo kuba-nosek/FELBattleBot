@@ -152,11 +152,11 @@ These states represent the current operating mode or health of the robot.
 
 ### POV LED Strip (Hardware RMT)
 
-The optional 14-pixel WS2812B strip is configured in `include/config.h`[span_31](start_span)[span_31](end_span). Thanks to the ESP32-S3 architecture, the strip is driven entirely by the **hardware RMT peripheral**, utilizing DMA transfers. This removes the need for CPU-blocking bit-banging, freeing the processor for high-frequency sensor fusion and motor control.
+The 10-pixel WS2812B strip is configured in `include/config.h` and runs along one radius, with pixel 0 at the outer edge. The ESP32-S3 RMT peripheral sends GRB data without software timing loops. Set `USE_LED_STRIP` to `false` to disable updates.
 
-Spin mode uses pixels 0–6 from the outer edge toward the rotation axis and keeps pixels 7–13 dark[span_32](start_span)[span_32](end_span). Its first frame clears all 14 pixels; later frames transmit only seven[span_33](start_span)[span_33](end_span). The refresh rate is capped at 500 Hz and unchanged frames are not retransmitted[span_34](start_span)[span_34](end_span).
+Spin mode uses 96 angular sectors. Inner pixels reuse colors pre-blended across progressively wider sector groups, as configured by `LED_STRIP_SECTOR_DIVISORS`. The first frame clears all ten pixels. Later frames send only the shortest outer-first prefix containing every changed pixel; unchanged frames are skipped. The refresh rate is capped at 1200 Hz.
 
-Source images live in `assets/led-strip/`[span_35](start_span)[span_35](end_span). Each PlatformIO build runs `python3 scripts/generate_led_strip_images.py`, generating compile-time RGB arrays for the POV sectors[span_36](start_span)[span_36](end_span). A built-in test pattern is always generated, and up to four user images are assigned alphabetically to six-position switch positions 3–6[span_37](start_span)[span_37](end_span).
+Source images live in `assets/led-strip/`. Each PlatformIO build runs `python3 scripts/generate_led_strip_images.py` to produce compile-time RGB arrays with bilinear and angular sampling. A built-in test pattern is always generated, and up to four user images are assigned alphabetically to six-position switch positions 3–6.
 
 ---
 

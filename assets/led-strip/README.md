@@ -5,6 +5,12 @@ discovers up to four images alphabetically, samples each image from the outer
 edge toward the rotation axis, and compiles the result into the firmware.
 Transparent pixels are rendered as black.
 
+Generation uses bilinear source sampling and averages multiple angular samples
+for every output sector. Inner LEDs are pre-blended across the wider sectors
+configured by `LED_STRIP_SECTOR_DIVISORS`; their generated values are repeated
+until the next sector group. The preview therefore shows the same blended values
+that the firmware transmits, without runtime interpolation.
+
 The filename becomes the `LEDStripAnimation` name. For example,
 `team-logo.png` becomes `LEDStripAnimation::TeamLogo`. Names must remain unique
 after punctuation and spaces are removed.
