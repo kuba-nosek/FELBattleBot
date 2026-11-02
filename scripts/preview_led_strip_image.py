@@ -10,7 +10,7 @@ try:
     from PIL import Image, ImageDraw, ImageFont
 except ImportError:
     print(
-        "Pillow is required to preview POV LED-strip images. "
+        "Pillow is required to preview rotary display LED-strip images. "
         "Install it with: python3 -m pip install Pillow",
         file=sys.stderr,
     )
@@ -18,8 +18,8 @@ except ImportError:
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GENERATED_SOURCE_PATH = ROOT / "lib" / "POVDisplay" / "GeneratedLEDStripImages.cpp"
-GENERATED_HEADER_PATH = ROOT / "lib" / "POVDisplay" / "GeneratedLEDStripImages.h"
+GENERATED_SOURCE_PATH = ROOT / "lib" / "RotaryDisplay" / "GeneratedLEDStripImages.cpp"
+GENERATED_HEADER_PATH = ROOT / "lib" / "RotaryDisplay" / "GeneratedLEDStripImages.h"
 CONFIG_PATH = ROOT / "include" / "config.h"
 DEFAULT_OUTPUT_DIRECTORY = ROOT / ".pio" / "led-strip-previews"
 
@@ -79,7 +79,7 @@ def color_tuple(color):
     return (color >> 16 & 0xFF, color >> 8 & 0xFF, color & 0xFF)
 
 
-def render_pov_image(sectors, size, brightness=None, supersampling=3):
+def render_rotary_image(sectors, size, brightness=None, supersampling=3):
     if size < 32:
         raise ValueError("Preview size must be at least 32 pixels")
     if not sectors or not sectors[0]:
@@ -139,7 +139,7 @@ def create_contact_sheet(rendered_images):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Preview all ideal POV images reconstructed from the generated firmware arrays"
+        description="Preview rotary display images reconstructed from the generated firmware arrays"
     )
     parser.add_argument("--list", action="store_true", help="list generated image names and exit")
     parser.add_argument("--size", type=int, default=700, help="square preview size in pixels (default: 700)")
@@ -172,7 +172,7 @@ def main():
     output_directory.mkdir(parents=True, exist_ok=True)
     rendered_images = {}
     for animation_name, sectors in arrays.items():
-        image = render_pov_image(sectors, arguments.size, brightness)
+        image = render_rotary_image(sectors, arguments.size, brightness)
         image.save(output_directory / f"{animation_name}.png")
         rendered_images[animation_name] = image
 
@@ -182,7 +182,7 @@ def main():
     print(f"Saved {len(rendered_images)} previews and contact sheet to {output_directory}")
 
     if not arguments.no_show:
-        contact_sheet.show(title="POV LED-strip previews")
+        contact_sheet.show(title="Rotary display LED-strip previews")
 
 
 if __name__ == "__main__":

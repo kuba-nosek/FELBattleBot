@@ -5,7 +5,7 @@
 #include "H3LIS331DL.h"
 #include "CRSFReceiver.h"
 #include "IndicatorLED.h"
-#include "POVDisplay.h"
+#include "RotaryDisplay.h"
 #include "Core/ModeHandler.h"
 #include "AM32Motor.h"
 #include "Utils/SignalProcessing.h"
@@ -25,7 +25,7 @@ H3LIS331DL accel2(PIN_SPI_CS2, ACCEL2_OFFSET_X_G, ACCEL2_OFFSET_Y_G, ACCEL2_OFFS
 CRSFReceiver receiver(PIN_CRSF_RX, PIN_CRSF_TX);
 
 IndicatorLED indicator(PIN_LED);
-POVDisplay povDisplay(PIN_LED_STRIP);
+RotaryDisplay rotaryDisplay(PIN_LED_STRIP);
 
 ModeHandler modeHandler;
 TelemetryManager telemetryManager;
@@ -62,9 +62,9 @@ void onFailsafe() {
     if (robot.hw.indicator) {
         robot.hw.indicator->setIndication(LEDIndication::Failsafe);
     }
-    if (robot.hw.povDisplay) {
-        robot.hw.povDisplay->setMode(POVDisplayMode::Static);
-        robot.hw.povDisplay->setAnimation(LEDStripAnimation::Failsafe);
+    if (robot.hw.rotaryDisplay) {
+        robot.hw.rotaryDisplay->setMode(RotaryDisplayMode::Static);
+        robot.hw.rotaryDisplay->setAnimation(LEDStripAnimation::Failsafe);
     }
 }
 
@@ -72,9 +72,9 @@ void onOTAStatus(OTAStatus status) {
     switch(status) {
         case OTAStatus::Starting:
             robot.state.requestedMode = DriveModeType::Idle;
-            if(robot.hw.povDisplay) {
-                robot.hw.povDisplay->setMode(POVDisplayMode::Static);
-                robot.hw.povDisplay->setAnimation(LEDStripAnimation::Bootup);
+            if(robot.hw.rotaryDisplay) {
+                robot.hw.rotaryDisplay->setMode(RotaryDisplayMode::Static);
+                robot.hw.rotaryDisplay->setAnimation(LEDStripAnimation::Bootup);
             }
             break;
         case OTAStatus::Waiting:
@@ -111,13 +111,13 @@ void setup() {
     SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, -1);
 
     indicator.init();
-    povDisplay.init();
+    rotaryDisplay.init();
     
     indicator.setIndication(LEDIndication::Idle);
     indicator.playAnimation(LEDAnimation::Bootup);
     
-    povDisplay.setMode(POVDisplayMode::Static);
-    povDisplay.setAnimation(LEDStripAnimation::Bootup);
+    rotaryDisplay.setMode(RotaryDisplayMode::Static);
+    rotaryDisplay.setAnimation(LEDStripAnimation::Bootup);
 
     receiver.connect();
     receiver.onDisconnect(onFailsafe);
@@ -135,12 +135,12 @@ void setup() {
 
     if(!hardwareOk) {
         indicator.setIndication(LEDIndication::HardwareError);
-        povDisplay.setMode(POVDisplayMode::Static);
-        povDisplay.setAnimation(LEDStripAnimation::HardwareError);
+        rotaryDisplay.setMode(RotaryDisplayMode::Static);
+        rotaryDisplay.setAnimation(LEDStripAnimation::HardwareError);
 
         while(true) {
             indicator.update();
-            povDisplay.update();
+            rotaryDisplay.update();
             delay(10);
         }
     }
@@ -152,7 +152,7 @@ void setup() {
     robot.hw.rightMotor = &motorRight;
     robot.hw.rx = &receiver;
     robot.hw.indicator = &indicator;
-    robot.hw.povDisplay = &povDisplay;
+    robot.hw.rotaryDisplay = &rotaryDisplay;
 
     xTaskCreatePinnedToCore(mainThread, "ControlLoop", 8192, NULL, 3, &mainTaskHandle, 0);
     xTaskCreatePinnedToCore(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL, 1);
@@ -250,7 +250,7 @@ void LEDThread(void* pvParameters) {
 
     while(true) {
         if (robot.hw.indicator) robot.hw.indicator->update();
-        if (robot.hw.povDisplay) robot.hw.povDisplay->update();
+        if (robot.hw.rotaryDisplay) robot.hw.rotaryDisplay->update();
         vTaskDelay(taskPeriod);
     }
 }

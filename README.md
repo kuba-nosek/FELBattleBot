@@ -10,7 +10,7 @@ The architecture is explicitly prepared for advanced kinetic operations, includi
 - [Custom Libraries (`lib/`)](#custom-libraries-lib)
 - [Core Application Logic (`src/`)](#core-application-logic-src)
 - [EdgeTX Telemetry](#edgetx-telemetry)
-- [Visual Feedback (LED UI & POV)](#visual-feedback-led-ui--pov)
+- [Visual Feedback (LED UI & Rotary Display)](#visual-feedback-led-ui--rotary-display)
 - [FreeRTOS Threading Structure](#freertos-threading-structure)
 - [Safety and Failsafes](#safety-and-failsafes)
 
@@ -61,7 +61,7 @@ An isolated driver for parsing the ExpressLRS / Crossfire serial protocol via UA
 *   **`getChannelsSnapshot()`**: Returns one coherent, thread-safe snapshot of all channel pulse widths (988–2012 µs) without mixing values from different CRSF frames.
 *   **`onDisconnect(callback)`**: Registers a safety callback executed immediately upon signal loss.
 
-### 4. `LEDHandler` (Status, Flash, and POV UI)
+### 4. `LEDHandler` (Status, Flash, and Rotary Display UI)
 Manages the visual feedback of the robot using a priority-based status LED and an independent WS2812B strip.
 *   **`setIndication(LEDIndication)`**: Sets the persistent status of the robot (e.g., `Idle`, `Forward`, `HardwareError`).
 *   **`setStripMode(LEDStripMode)`**: Selects static effects or angle-integrated spinning output.
@@ -83,7 +83,7 @@ values are selected by the midpoint between six equally spaced RC positions[span
 | CH6 | Potentiometers | Current left/right placeholder mapping (`-1000..1000`)[span_7](start_span)[span_7](end_span) |
 | CH7 | Left three-position switch | Power expo selection (`1 / 3 / 5`)[span_8](start_span)[span_8](end_span) |
 | CH8 | Right three-position switch | Mode and steering expo selection[span_9](start_span)[span_9](end_span) |
-| CH14 | Six-position switch | Spin-mode POV selection (`Off`, test pattern, or user images 1–4)[span_10](start_span)[span_10](end_span) |
+| CH14 | Six-position switch | Spin-mode rotary display selection (`Off`, test pattern, or user images 1–4)[span_10](start_span)[span_10](end_span) |
 
 The processed `ReceiverInput` is passed explicitly to each drive mode's `execute`
 method[span_11](start_span)[span_11](end_span). Forward mode converts its signed potentiometer inputs to `0..1000` expo
@@ -135,9 +135,9 @@ Install and model-setup instructions for the RadioMaster Boxer are in
 
 ---
 
-## Visual Feedback (LED UI & POV)
+## Visual Feedback (LED UI & Rotary Display)
 
-The robot utilizes a time-modulo based visual language to communicate its current state and urgent events, coupled with an advanced POV display.
+The robot uses timed LED patterns to communicate its state and urgent events, alongside the rotary display.
 
 ### Persistent Indications (Base States)
 These states represent the current operating mode or health of the robot.
@@ -150,7 +150,7 @@ These states represent the current operating mode or health of the robot.
 | **Failsafe** | Slow Blink (2 Hz) | 250 ms ON, 250 ms OFF loop warning of RC link loss[span_29](start_span)[span_29](end_span). |
 | **Hardware Error** | Rapid Strobe (15 Hz) | Fast terminal error warning (30 ms ON, 30 ms OFF)[span_30](start_span)[span_30](end_span). |
 
-### POV LED Strip (Hardware RMT)
+### Rotary Display LED Strip (Hardware RMT)
 
 The 10-pixel WS2812B strip is configured in `include/config.h` and runs along one radius, with pixel 0 at the outer edge. The ESP32-S3 RMT peripheral sends GRB data without software timing loops. Set `USE_LED_STRIP` to `false` to disable updates.
 
