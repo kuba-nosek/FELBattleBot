@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <WiFi.h>
-#include <ArduinoOTA.h>
 
 #include "H3LIS331DL.h"
 #include "CRSFReceiver.h"
@@ -12,6 +11,7 @@
 #include "Utils/SignalProcessing.h"
 #include "Core/TelemetryManager.h"
 #include "config.h"
+#include "OTA.h"
 
 using namespace RobotConfig;
 
@@ -68,67 +68,38 @@ void onFailsafe() {
     }
 }
 
-// OTA update
-void enterOTAMode() {
-    robot.state.requestedMode = DriveModeType::Idle;
-
-    if (robot.hw.povDisplay) {
-        robot.hw.povDisplay->setMode(POVDisplayMode::Static);
-        robot.hw.povDisplay->setAnimation(LEDStripAnimation::Bootup);
-    }
-
-    WiFi.mode(WIFI_AP);
-    WiFi.setSleep(false);
-    delay(100); 
-    WiFi.softAP(RobotConfig::OTA_AP_SSID, RobotConfig::OTA_AP_PASSWORD);
-    
-    static bool isUpdating = false;
-
-    ArduinoOTA.onStart([]() { 
-        isUpdating = true; 
-        if (robot.hw.indicator) {
-            robot.hw.indicator->setIndication(LEDIndication::OTA_Updating);
-        }
-    });
-
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        if (robot.hw.indicator) {
-            robot.hw.indicator->update();
-        }
-    });
-
-    ArduinoOTA.onEnd([]() { isUpdating = false; });
-    ArduinoOTA.onError([](ota_error_t error) { isUpdating = false; });
-
-    ArduinoOTA.setHostname(RobotConfig::OTA_HOSTNAME);
-    ArduinoOTA.begin();
-
-    while(true) {
-        ArduinoOTA.handle();
-        
-        if (robot.hw.indicator) {
-            if (!isUpdating) {
-                if (WiFi.softAPgetStationNum() > 0) {
-                    robot.hw.indicator->setIndication(LEDIndication::OTA_Connected);
-                } else {
-                    robot.hw.indicator->setIndication(LEDIndication::OTA_Waiting);
-                }
+void onOTAStatus(OTAStatus status) {
+    switch(status) {
+        case OTAStatus::Starting:
+            robot.state.requestedMode = DriveModeType::Idle;
+            if(robot.hw.povDisplay) {
+                robot.hw.povDisplay->setMode(POVDisplayMode::Static);
+                robot.hw.povDisplay->setAnimation(LEDStripAnimation::Bootup);
             }
-            robot.hw.indicator->update();
-        }
-
-        if (receiver.isConnected()) {
-            const ReceiverChannels channels = receiver.getChannelsSnapshot();
-            const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
-            
-            if (!input.leftShoulderSwitch) {
-                ESP.restart();
-            }
-        } else {
-            ESP.restart();
-        }   
-        vTaskDelay(pdMS_TO_TICKS(10)); 
+            break;
+        case OTAStatus::Waiting:
+            indicator.setIndication(LEDIndication::OTA_Waiting);
+            break;
+        case OTAStatus::Connected:
+            indicator.setIndication(LEDIndication::OTA_Connected);
+            break;
+        case OTAStatus::Updating:
+            indicator.setIndication(LEDIndication::OTA_Updating);
+            break;
+        case OTAStatus::Error:
+            indicator.playAnimation(LEDAnimation::ErrorAlert);
+            break;
+        case OTAStatus::Finished:
+            break;
     }
+}
+
+bool shouldExitOtaMode() {
+    if(!receiver.isConnected()) return true;
+
+    const ReceiverChannels channels = receiver.getChannelsSnapshot();
+    const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
+    return !input.leftShoulderSwitch;
 }
 
 void setup() {
@@ -224,7 +195,7 @@ void mainThread(void* pvParameters) {
             robot.state.requestedMode = decodedMode;
             
             if(decodedMode == DriveModeType::Idle && input.leftShoulderSwitch) {
-                enterOTAMode();
+                enterOtaMode({onOTAStatus, shouldExitOtaMode});
             }
         }
 
@@ -305,4 +276,3 @@ void accelThread(void* pvParameters) {
 
     }
 }
-
