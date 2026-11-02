@@ -82,12 +82,6 @@ bool AM32Motor::init() {
 
 void AM32Motor::setReversed(bool reversed) { _reversed = reversed; }
 
-void AM32Motor::resetDirectionGuard() {
-    _lastDirection = 0;
-    _atZero = true;
-    _zeroSinceMs = 0;
-}
-
 void AM32Motor::stop() {
     setSpeed(0, millis());
 }

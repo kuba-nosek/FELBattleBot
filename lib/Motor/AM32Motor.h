@@ -30,7 +30,6 @@ public:
     // --- IMotor Interface ---
     bool init() override;
     void setReversed(bool reversed) override;
-    void resetDirectionGuard() override;
     void stop() override;
     void setSpeed(int16_t speed, uint32_t currentMs) override;
 
