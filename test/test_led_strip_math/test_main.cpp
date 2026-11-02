@@ -39,9 +39,9 @@ void testZeroAndNonFiniteVelocityDoNotMoveAngle() {
 }
 
 void testAngleMapsToConfiguredSector() {
-    TEST_ASSERT_EQUAL_UINT16(0, LEDStripMath::angleToSector(0.0f, 42));
-    TEST_ASSERT_EQUAL_UINT16(10, LEDStripMath::angleToSector(LEDStripMath::TWO_PI_RADIANS / 4.0f, 42));
-    TEST_ASSERT_EQUAL_UINT16(31, LEDStripMath::angleToSector(-LEDStripMath::TWO_PI_RADIANS / 4.0f, 42));
+    TEST_ASSERT_EQUAL_UINT16(0, LEDStripMath::angleToSector(0.0f, 96));
+    TEST_ASSERT_EQUAL_UINT16(24, LEDStripMath::angleToSector(LEDStripMath::TWO_PI_RADIANS / 4.0f, 96));
+    TEST_ASSERT_EQUAL_UINT16(72, LEDStripMath::angleToSector(-LEDStripMath::TWO_PI_RADIANS / 4.0f, 96));
 }
 
 void testRefreshLimitAndFrameSuppression() {
@@ -49,22 +49,22 @@ void testRefreshLimitAndFrameSuppression() {
     TEST_ASSERT_TRUE(LEDStripMath::shouldRefresh(2000, 0, 2000, true));
     TEST_ASSERT_TRUE(LEDStripMath::shouldRefresh(1, UINT32_MAX - 1998, 2000, true));
     TEST_ASSERT_TRUE(LEDStripMath::shouldRefresh(1, 1, 2000, false));
-
-    TEST_ASSERT_FALSE(LEDStripMath::shouldTransmit(true, false));
-    TEST_ASSERT_TRUE(LEDStripMath::shouldTransmit(true, true));
-    TEST_ASSERT_TRUE(LEDStripMath::shouldTransmit(false, false));
 }
 
-void testSpinningTransmissionClearsFullStripBeforeUsingHalf() {
-    constexpr uint16_t FULL_LED_COUNT = 14;
-    constexpr uint16_t SPIN_LED_COUNT = 7;
+void testChangedPrefixLength() {
+    const uint32_t transmitted[] = {1, 2, 3, 4, 5};
 
-    TEST_ASSERT_EQUAL_UINT16(FULL_LED_COUNT,
-                             LEDStripMath::transmissionPixelCount(true, false, FULL_LED_COUNT, SPIN_LED_COUNT));
-    TEST_ASSERT_EQUAL_UINT16(SPIN_LED_COUNT,
-                             LEDStripMath::transmissionPixelCount(true, true, FULL_LED_COUNT, SPIN_LED_COUNT));
-    TEST_ASSERT_EQUAL_UINT16(FULL_LED_COUNT,
-                             LEDStripMath::transmissionPixelCount(false, true, FULL_LED_COUNT, SPIN_LED_COUNT));
+    const uint32_t unchanged[] = {1, 2, 3, 4, 5};
+    TEST_ASSERT_EQUAL_UINT16(0, LEDStripMath::changedPrefixLength(unchanged, transmitted, 5));
+
+    const uint32_t outerChanged[] = {9, 2, 3, 4, 5};
+    TEST_ASSERT_EQUAL_UINT16(1, LEDStripMath::changedPrefixLength(outerChanged, transmitted, 5));
+
+    const uint32_t middleChanged[] = {1, 2, 9, 4, 5};
+    TEST_ASSERT_EQUAL_UINT16(3, LEDStripMath::changedPrefixLength(middleChanged, transmitted, 5));
+
+    const uint32_t innerChanged[] = {1, 2, 3, 4, 9};
+    TEST_ASSERT_EQUAL_UINT16(5, LEDStripMath::changedPrefixLength(innerChanged, transmitted, 5));
 }
 
 void testAnimationChangeDoesNotResetIntegratedPhase() {
@@ -84,7 +84,7 @@ int main(int, char**) {
     RUN_TEST(testZeroAndNonFiniteVelocityDoNotMoveAngle);
     RUN_TEST(testAngleMapsToConfiguredSector);
     RUN_TEST(testRefreshLimitAndFrameSuppression);
-    RUN_TEST(testSpinningTransmissionClearsFullStripBeforeUsingHalf);
+    RUN_TEST(testChangedPrefixLength);
     RUN_TEST(testAnimationChangeDoesNotResetIntegratedPhase);
     return UNITY_END();
 }

@@ -22,7 +22,8 @@ class GenerateLEDStripImagesTests(unittest.TestCase):
         self.assets.mkdir()
         self.config.write_text(
             "constexpr uint16_t LED_STRIP_LED_COUNT = 4;\n"
-            "constexpr uint8_t LED_STRIP_SECTORS_PER_LED = 3;\n",
+            "constexpr uint16_t LED_STRIP_SECTOR_COUNT = 12;\n"
+            "constexpr uint8_t LED_STRIP_SECTOR_DIVISORS[LED_STRIP_LED_COUNT] = {1, 1, 2, 4};\n",
             encoding="utf-8",
         )
 
@@ -30,23 +31,22 @@ class GenerateLEDStripImagesTests(unittest.TestCase):
         self.temporary_directory.cleanup()
 
     def test_parses_dimensions_and_generates_deterministically(self):
-        self.assertEqual((4, 2, 12), generator.read_dimensions(self.config))
+        self.assertEqual((4, 12, [1, 1, 2, 4]), generator.read_dimensions(self.config))
         first = generator.render_files(self.config, self.assets)
         second = generator.render_files(self.config, self.assets)
         self.assertEqual(first, second)
-        self.assertIn("GENERATED_FULL_LED_COUNT = 4", first[0])
-        self.assertIn("GENERATED_SPIN_LED_COUNT = 2", first[0])
+        self.assertIn("GENERATED_LED_COUNT = 4", first[0])
         self.assertIn("GENERATED_SECTOR_COUNT = 12", first[0])
         self.assertIn("static_assert", first[0])
 
-    def test_rejects_odd_full_strip_led_count(self):
+    def test_accepts_odd_radius_led_count(self):
         self.config.write_text(
             "constexpr uint16_t LED_STRIP_LED_COUNT = 5;\n"
-            "constexpr uint8_t LED_STRIP_SECTORS_PER_LED = 3;\n",
+            "constexpr uint16_t LED_STRIP_SECTOR_COUNT = 15;\n"
+            "constexpr uint8_t LED_STRIP_SECTOR_DIVISORS[LED_STRIP_LED_COUNT] = {1, 1, 1, 3, 5};\n",
             encoding="utf-8",
         )
-        with self.assertRaisesRegex(RuntimeError, "must be even"):
-            generator.read_dimensions(self.config)
+        self.assertEqual((5, 15, [1, 1, 1, 3, 5]), generator.read_dimensions(self.config))
 
     def test_converts_filename_to_enum_name(self):
         self.assertEqual("TeamLogoV2", generator.filename_to_enum(Path("team-logo-v2.png")))
@@ -58,17 +58,31 @@ class GenerateLEDStripImagesTests(unittest.TestCase):
         names = [name for name, _ in generator.discover_images(self.assets)]
         self.assertEqual(["Alpha", "Zebra"], names)
 
-    def test_samples_half_strip_outer_to_center_and_applies_transparency(self):
+    def test_samples_radius_outer_to_center_and_applies_transparency(self):
         image_path = self.assets / "radial.png"
-        image = Image.new("RGBA", (9, 9), (0, 0, 255, 0))
-        image.putpixel((4, 0), (255, 0, 0, 128))
-        image.putpixel((4, 3), (0, 255, 0, 255))
+        image = Image.new("RGBA", (9, 9), (255, 0, 0, 128))
         image.save(image_path)
 
         sampled = generator.sample_image(image_path, 2, 12)
         self.assertEqual(12, len(sampled))
         self.assertTrue(all(len(sector) == 2 for sector in sampled))
-        self.assertEqual([0x800000, 0x00FF00], sampled[0])
+        self.assertTrue(all(pixel == 0x800000 for sector in sampled for pixel in sector))
+
+    def test_bilinear_sampling_blends_source_pixels(self):
+        image = Image.new("RGBA", (2, 1))
+        image.putpixel((0, 0), (255, 0, 0, 255))
+        image.putpixel((1, 0), (0, 0, 255, 255))
+
+        red, green, blue = generator.sample_image_color(image, 0.5, 0.0)
+        self.assertAlmostEqual(127.5, red)
+        self.assertEqual(0.0, green)
+        self.assertAlmostEqual(127.5, blue)
+
+    def test_generator_repeats_preblended_inner_sectors(self):
+        sectors = generator.make_test_pattern(4, 12, [1, 1, 2, 4])
+
+        self.assertEqual([sectors[0][3]] * 4, [sectors[index][3] for index in range(4)])
+        self.assertEqual([sectors[4][3]] * 4, [sectors[index][3] for index in range(4, 8)])
 
     def test_rejects_duplicate_generated_names(self):
         Image.new("RGB", (2, 2)).save(self.assets / "my-logo.png")

@@ -4,14 +4,15 @@
 #include "config.h"
 
 #include <freertos/FreeRTOS.h>
+#include <driver/rmt_tx.h>
 #include <stdint.h>
-#include <Adafruit_NeoPixel.h>
 
 enum class POVDisplayMode : uint8_t { Static, Spinning };
 
 class POVDisplay {
   public:
     explicit POVDisplay(uint8_t pin);
+    ~POVDisplay();
 
     void init();
     void setMode(POVDisplayMode mode);
@@ -33,18 +34,18 @@ class POVDisplay {
     uint32_t _lastRefreshUs;
     uint32_t _animationStartMs;
     bool _frameSent;
-    POVDisplayMode _lastTransmittedMode;
     
     uint32_t _pixels[RobotConfig::LED_STRIP_LED_COUNT];
     uint32_t _lastPixels[RobotConfig::LED_STRIP_LED_COUNT];
 
-    Adafruit_NeoPixel _strip;
+    rmt_channel_handle_t _tx = nullptr;
+    rmt_encoder_handle_t _encoder = nullptr;
+    uint8_t _txBytes[RobotConfig::LED_STRIP_LED_COUNT * 3]{};
     portMUX_TYPE _stateLock = portMUX_INITIALIZER_UNLOCKED;
 
     void renderStaticStrip(LEDStripAnimation animation, uint32_t elapsedMs);
     void renderSpinningStrip(LEDStripAnimation animation);
     void applyBrightness();
-    bool pixelsChanged() const;
-    void rememberPixels();
-    void transmitFrame();
+    void rememberPixels(uint16_t pixelCount);
+    bool transmitFrame(uint16_t pixelCount);
 };

@@ -84,12 +84,18 @@ constexpr int32_t FORWARD_MAX_STANDING_TURN_POWER = 50;
 // 8. POV LED STRIP
 // ==========================================
 constexpr bool USE_LED_STRIP = true;
-constexpr uint16_t LED_STRIP_LED_COUNT = 14;
-constexpr uint16_t LED_STRIP_SPIN_LED_COUNT = LED_STRIP_LED_COUNT / 2;
-constexpr uint8_t LED_STRIP_SECTORS_PER_LED = 3;
-constexpr uint16_t LED_STRIP_SECTOR_COUNT = LED_STRIP_LED_COUNT * LED_STRIP_SECTORS_PER_LED;
+// Physical LEDs along one radius, ordered from the outer edge toward the axis.
+constexpr uint16_t LED_STRIP_LED_COUNT = 10;
+constexpr uint16_t LED_STRIP_SECTOR_COUNT = 96;
+// Inner pixels reuse pre-blended colors over wider angular sectors.
+constexpr uint8_t LED_STRIP_SECTOR_DIVISORS[LED_STRIP_LED_COUNT] = {1, 1, 1, 1, 2, 2, 4, 4, 8, 16};
 constexpr uint16_t LED_STRIP_REFRESH_HZ = 1200;
 constexpr uint8_t LED_STRIP_BRIGHTNESS = 32;
+
+static_assert(LED_STRIP_LED_COUNT > 1, "The POV strip needs at least two LEDs");
+static_assert(LED_STRIP_SECTOR_COUNT > 0, "The POV strip needs at least one angular sector");
+static_assert(LED_STRIP_REFRESH_HZ > 0, "The POV strip refresh rate must be positive");
+static_assert(LED_STRIP_REFRESH_HZ <= 1000000, "The POV strip refresh interval must be at least one microsecond");
 
 // ==========================================
 // 9. TELEMETRY

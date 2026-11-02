@@ -8,12 +8,13 @@ using namespace RobotConfig;
 
 // --- Configuration Guards ---
 static_assert(LED_STRIP_LED_COUNT > 1, "The POV strip needs at least two LEDs");
-static_assert(LED_STRIP_LED_COUNT % 2 == 0, "The half-strip POV layout requires an even LED count");
-static_assert(LED_STRIP_SECTORS_PER_LED > 0, "The POV strip needs at least one sector per LED");
+static_assert(LED_STRIP_SECTOR_COUNT > 0, "The POV strip needs at least one sector");
 static_assert(LED_STRIP_REFRESH_HZ > 0, "The POV strip refresh rate must be positive");
 static_assert(LED_STRIP_REFRESH_HZ <= 1000000, "The POV strip refresh interval must be at least one microsecond");
 
 namespace {
+constexpr uint32_t LED_RMT_RESOLUTION_HZ = 20000000;
+
 uint32_t scaleColor(uint32_t color, uint8_t brightness) {
     uint8_t r = ((color >> 16) & 0xFF) * brightness / 255;
     uint8_t g = ((color >> 8) & 0xFF) * brightness / 255;
@@ -28,12 +29,38 @@ POVDisplay::POVDisplay(uint8_t pin)
     : _pin(pin), _mode(POVDisplayMode::Static), _animation(LEDStripAnimation::Off),
       _angularVelocityRadPerSec(0.0f), _modeChanged(true), _animationChanged(true),
       _angleRadians(0.0f), _lastIntegrationUs(0), _lastRefreshUs(0), _animationStartMs(0), _frameSent(false),
-      _lastTransmittedMode(POVDisplayMode::Static), _pixels{}, _lastPixels{},
-      _strip(LED_STRIP_LED_COUNT, pin, NEO_GRB + NEO_KHZ800) {}
+      _pixels{}, _lastPixels{} {}
+
+POVDisplay::~POVDisplay() {
+    if(_tx) {
+        rmt_tx_wait_all_done(_tx, portMAX_DELAY);
+        rmt_disable(_tx);
+    }
+    if(_encoder) rmt_del_encoder(_encoder);
+    if(_tx) rmt_del_channel(_tx);
+}
 
 void POVDisplay::init() {
-    _strip.begin();
-    _strip.show();
+    if(!USE_LED_STRIP) return;
+
+    rmt_tx_channel_config_t txConfig = {};
+    txConfig.gpio_num = static_cast<gpio_num_t>(_pin);
+    txConfig.clk_src = RMT_CLK_SRC_DEFAULT;
+    txConfig.resolution_hz = LED_RMT_RESOLUTION_HZ;
+    txConfig.mem_block_symbols = 48;
+    txConfig.trans_queue_depth = 1;
+    if(rmt_new_tx_channel(&txConfig, &_tx) != ESP_OK) return;
+
+    rmt_bytes_encoder_config_t encoderConfig = {};
+    encoderConfig.bit0 = {8, 1, 17, 0};
+    encoderConfig.bit1 = {16, 1, 9, 0};
+    encoderConfig.flags.msb_first = 1;
+    if(rmt_new_bytes_encoder(&encoderConfig, &_encoder) != ESP_OK) return;
+    if(rmt_enable(_tx) != ESP_OK) return;
+
+    // Clear all physical pixels before the first rendered frame.
+    rmt_transmit_config_t transmitConfig = {};
+    rmt_transmit(_tx, _encoder, _txBytes, sizeof(_txBytes), &transmitConfig);
 }
 
 // --- Setters ---
@@ -59,7 +86,7 @@ void POVDisplay::setAngularVelocity(float radiansPerSecond) {
 // --- Main Update Loop ---
 
 void POVDisplay::update() {
-    if(!USE_LED_STRIP) return;
+    if(!USE_LED_STRIP || !_tx || !_encoder) return;
 
     const uint32_t currentMs = millis();
     const uint32_t currentUs = micros();
@@ -91,15 +118,15 @@ void POVDisplay::update() {
 
     applyBrightness();
 
-    if(!LEDStripMath::shouldTransmit(_frameSent, pixelsChanged()) && _lastTransmittedMode == _mode) {
-        return;
-    }
+    const uint16_t changedPixelCount =
+        LEDStripMath::changedPrefixLength(_pixels, _lastPixels, LED_STRIP_LED_COUNT);
+    if(_frameSent && changedPixelCount == 0) return;
 
-    transmitFrame();
-    
-    rememberPixels();
+    const uint16_t transmittedPixelCount = _frameSent ? changedPixelCount : LED_STRIP_LED_COUNT;
+    if(!transmitFrame(transmittedPixelCount)) return;
+
+    rememberPixels(transmittedPixelCount);
     _frameSent = true;
-    _lastTransmittedMode = _mode;
     _lastRefreshUs = currentUs;
 }
 
@@ -148,7 +175,7 @@ void POVDisplay::renderSpinningStrip(LEDStripAnimation animation) {
         const uint32_t* sectorData = LEDStripImages::getSectorPixels(animation, sector);
         
         if(sectorData != nullptr) {
-            for(uint16_t i = 0; i < LED_STRIP_SPIN_LED_COUNT; ++i) {
+            for(uint16_t i = 0; i < LED_STRIP_LED_COUNT; ++i) {
                 _pixels[i] = sectorData[i];
             }
         }
@@ -163,25 +190,22 @@ void POVDisplay::applyBrightness() {
     }
 }
 
-bool POVDisplay::pixelsChanged() const {
-    for(uint16_t i = 0; i < LED_STRIP_LED_COUNT; ++i) {
-        if(_pixels[i] != _lastPixels[i]) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void POVDisplay::rememberPixels() {
-    for(uint16_t i = 0; i < LED_STRIP_LED_COUNT; ++i) {
+void POVDisplay::rememberPixels(uint16_t pixelCount) {
+    for(uint16_t i = 0; i < pixelCount; ++i) {
         _lastPixels[i] = _pixels[i];
     }
 }
 
-void POVDisplay::transmitFrame() {
-    for(uint16_t pixelIndex = 0; pixelIndex < LED_STRIP_LED_COUNT; ++pixelIndex) {
-        _strip.setPixelColor(pixelIndex, _pixels[pixelIndex]);
+bool POVDisplay::transmitFrame(uint16_t pixelCount) {
+    if(rmt_tx_wait_all_done(_tx, pdMS_TO_TICKS(5)) != ESP_OK) return false;
+
+    for(uint16_t i = 0; i < pixelCount; ++i) {
+        const uint32_t color = _pixels[i];
+        _txBytes[3 * i] = static_cast<uint8_t>(color >> 8);  // Green
+        _txBytes[3 * i + 1] = static_cast<uint8_t>(color >> 16); // Red
+        _txBytes[3 * i + 2] = static_cast<uint8_t>(color); // Blue
     }
-    
-    _strip.show(); 
+
+    rmt_transmit_config_t transmitConfig = {};
+    return rmt_transmit(_tx, _encoder, _txBytes, pixelCount * 3, &transmitConfig) == ESP_OK;
 }
