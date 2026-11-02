@@ -1,4 +1,4 @@
-# POV LED-strip images
+# Rotary display LED-strip images
 
 Put `.png`, `.jpg`, or `.jpeg` source images in this directory. The generator
 discovers up to four images alphabetically, samples each image from the outer

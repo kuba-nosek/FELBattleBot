@@ -2,7 +2,7 @@
 #include "IAccel.h"
 #include "IReceiver.h"
 #include "IndicatorLED.h"
-#include "POVDisplay.h"
+#include "RotaryDisplay.h"
 #include "BattlebotTelemetry.h"
 #include "DriveModeType.h"
 #include "IMotor.h"
@@ -31,7 +31,7 @@ struct RobotHardware {
     IMotor* rightMotor = nullptr;
     IReceiver* rx = nullptr;
     IndicatorLED* indicator = nullptr;
-    POVDisplay* povDisplay = nullptr;
+    RotaryDisplay* rotaryDisplay = nullptr;
 };
 
 struct RobotCore {

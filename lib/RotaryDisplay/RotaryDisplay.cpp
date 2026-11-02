@@ -1,4 +1,4 @@
-#include "POVDisplay.h"
+#include "RotaryDisplay.h"
 #include "LEDStripMath.h"
 #include "config.h"
 
@@ -7,10 +7,10 @@
 using namespace RobotConfig;
 
 // --- Configuration Guards ---
-static_assert(LED_STRIP_LED_COUNT > 1, "The POV strip needs at least two LEDs");
-static_assert(LED_STRIP_SECTOR_COUNT > 0, "The POV strip needs at least one sector");
-static_assert(LED_STRIP_REFRESH_HZ > 0, "The POV strip refresh rate must be positive");
-static_assert(LED_STRIP_REFRESH_HZ <= 1000000, "The POV strip refresh interval must be at least one microsecond");
+static_assert(LED_STRIP_LED_COUNT > 1, "The rotary display needs at least two LEDs");
+static_assert(LED_STRIP_SECTOR_COUNT > 0, "The rotary display needs at least one sector");
+static_assert(LED_STRIP_REFRESH_HZ > 0, "The rotary display refresh rate must be positive");
+static_assert(LED_STRIP_REFRESH_HZ <= 1000000, "The rotary display refresh interval must be at least one microsecond");
 
 namespace {
 constexpr uint32_t LED_RMT_RESOLUTION_HZ = 20000000;
@@ -25,13 +25,13 @@ uint32_t scaleColor(uint32_t color, uint8_t brightness) {
 
 // --- Initialization ---
 
-POVDisplay::POVDisplay(uint8_t pin)
-    : _pin(pin), _mode(POVDisplayMode::Static), _animation(LEDStripAnimation::Off),
+RotaryDisplay::RotaryDisplay(uint8_t pin)
+    : _pin(pin), _mode(RotaryDisplayMode::Static), _animation(LEDStripAnimation::Off),
       _angularVelocityRadPerSec(0.0f), _modeChanged(true), _animationChanged(true),
       _angleRadians(0.0f), _lastIntegrationUs(0), _lastRefreshUs(0), _animationStartMs(0), _frameSent(false),
       _pixels{}, _lastPixels{} {}
 
-POVDisplay::~POVDisplay() {
+RotaryDisplay::~RotaryDisplay() {
     if(_tx) {
         rmt_tx_wait_all_done(_tx, portMAX_DELAY);
         rmt_disable(_tx);
@@ -40,7 +40,7 @@ POVDisplay::~POVDisplay() {
     if(_tx) rmt_del_channel(_tx);
 }
 
-void POVDisplay::init() {
+void RotaryDisplay::init() {
     if(!USE_LED_STRIP) return;
 
     rmt_tx_channel_config_t txConfig = {};
@@ -65,27 +65,27 @@ void POVDisplay::init() {
 
 // --- Setters ---
 
-void POVDisplay::setMode(POVDisplayMode mode) {
+void RotaryDisplay::setMode(RotaryDisplayMode mode) {
     if(_mode != mode) {
         _mode = mode;
         _modeChanged = true;
     }
 }
 
-void POVDisplay::setAnimation(LEDStripAnimation animation) {
+void RotaryDisplay::setAnimation(LEDStripAnimation animation) {
     if(_animation != animation) {
         _animation = animation;
         _animationChanged = true;
     }
 }
 
-void POVDisplay::setAngularVelocity(float radiansPerSecond) {
+void RotaryDisplay::setAngularVelocity(float radiansPerSecond) {
     _angularVelocityRadPerSec = radiansPerSecond;
 }
 
 // --- Main Update Loop ---
 
-void POVDisplay::update() {
+void RotaryDisplay::update() {
     if(!USE_LED_STRIP || !_tx || !_encoder) return;
 
     const uint32_t currentMs = millis();
@@ -104,7 +104,7 @@ void POVDisplay::update() {
         return;
     }
     
-    if(_mode == POVDisplayMode::Spinning) {
+    if(_mode == RotaryDisplayMode::Spinning) {
         LEDStripMath::IntegrationState state = LEDStripMath::updateIntegration(
             _angleRadians, _lastIntegrationUs, currentUs, _angularVelocityRadPerSec, resetIntegration);
         
@@ -132,7 +132,7 @@ void POVDisplay::update() {
 
 // --- Rendering Logic ---
 
-void POVDisplay::renderStaticStrip(LEDStripAnimation animation, uint32_t elapsedMs) {
+void RotaryDisplay::renderStaticStrip(LEDStripAnimation animation, uint32_t elapsedMs) {
     uint32_t color = 0x000000;
 
     switch(animation) {
@@ -165,7 +165,7 @@ void POVDisplay::renderStaticStrip(LEDStripAnimation animation, uint32_t elapsed
     }
 }
 
-void POVDisplay::renderSpinningStrip(LEDStripAnimation animation) {
+void RotaryDisplay::renderSpinningStrip(LEDStripAnimation animation) {
     for(uint16_t i = 0; i < LED_STRIP_LED_COUNT; ++i) {
         _pixels[i] = 0x000000;
     }
@@ -184,19 +184,19 @@ void POVDisplay::renderSpinningStrip(LEDStripAnimation animation) {
 
 // --- Hardware & Utility ---
 
-void POVDisplay::applyBrightness() {
+void RotaryDisplay::applyBrightness() {
     for(uint16_t i = 0; i < LED_STRIP_LED_COUNT; ++i) {
         _pixels[i] = scaleColor(_pixels[i], LED_STRIP_BRIGHTNESS);
     }
 }
 
-void POVDisplay::rememberPixels(uint16_t pixelCount) {
+void RotaryDisplay::rememberPixels(uint16_t pixelCount) {
     for(uint16_t i = 0; i < pixelCount; ++i) {
         _lastPixels[i] = _pixels[i];
     }
 }
 
-bool POVDisplay::transmitFrame(uint16_t pixelCount) {
+bool RotaryDisplay::transmitFrame(uint16_t pixelCount) {
     if(rmt_tx_wait_all_done(_tx, pdMS_TO_TICKS(5)) != ESP_OK) return false;
 
     for(uint16_t i = 0; i < pixelCount; ++i) {
