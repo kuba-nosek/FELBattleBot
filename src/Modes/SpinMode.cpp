@@ -149,8 +149,9 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     const float updatedVariableOffsetRadians = variableHeadingOffsetRadians_ + headingChangeRadians;
     variableHeadingOffsetRadians_ = wrapRadians(updatedVariableOffsetRadians);
 
+    // The potentiometer moves the indicator flash without turning the motor translation vector.
     const float combinedHeadingRadians =
-        headingRadians_ + constantHeadingOffsetRadians_ + variableHeadingOffsetRadians_;
+        headingRadians_ + variableHeadingOffsetRadians_;
     const float correctedHeadingRadians = wrapRadians(combinedHeadingRadians);
     const float correctedAngularSpeedRadPerSec = spinDirection_ * angularSpeedRadPerSec_ + headingChangeSpeedRadPerSec;
 
@@ -168,7 +169,8 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     }
 
     const float timeUntilHeadingOffsetUs =
-        calculateTimeUntilHeadingOffsetUs(correctedHeadingRadians, correctedAngularSpeedRadPerSec);
+        calculateTimeUntilHeadingOffsetUs(
+            wrapRadians(correctedHeadingRadians + constantHeadingOffsetRadians_), correctedAngularSpeedRadPerSec);
 
     if(!isFlashDelayValid(timeUntilHeadingOffsetUs)) {
         if (robot.hw.indicator) {
