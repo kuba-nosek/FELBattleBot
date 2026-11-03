@@ -18,89 +18,28 @@ using namespace RobotConfig;
 // --- Global hardware instances ---
 AM32Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, MOTOR_POLE_PAIRS);
 AM32Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, MOTOR_POLE_PAIRS);
-
 H3LIS331DL accel1(PIN_SPI_CS1, ACCEL1_OFFSET_X_G, ACCEL1_OFFSET_Y_G, ACCEL1_OFFSET_Z_G);
 H3LIS331DL accel2(PIN_SPI_CS2, ACCEL2_OFFSET_X_G, ACCEL2_OFFSET_Y_G, ACCEL2_OFFSET_Z_G);
-
 CRSFReceiver receiver(PIN_CRSF_RX, PIN_CRSF_TX);
-
 IndicatorLED indicator(PIN_LED);
 RotaryDisplay rotaryDisplay(PIN_LED_STRIP);
 
+RobotCore robot;
 ModeHandler modeHandler;
 TelemetryManager telemetryManager;
 
-RobotCore robot;
-
-// --- FreeRTOS task prototypes ---
 void mainThread(void* pvParameters);
 void ReceiverThread(void* pvParameters);
 void LEDThread(void* pvParameters);
 void accelThread(void* pvParameters);
+void accel1_isr();
+void accel2_isr();
+void onFailsafe();
+void onOTAStatus(OTAStatus status);
+bool shouldExitOtaMode();
 
-// Globální handle pro notifikace
 TaskHandle_t accelTaskHandle = nullptr;
 TaskHandle_t mainTaskHandle = nullptr;
-
-// ISR funkce musí být v IRAM (nesmí se stránkovat z flash paměti)
-void IRAM_ATTR accel1_isr() {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(accelTaskHandle, &xHigherPriorityTaskWoken);
-    if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
-}
-
-void IRAM_ATTR accel2_isr() {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(accelTaskHandle, &xHigherPriorityTaskWoken);
-    if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
-}
-
-// --- Safety failsafe callback ---
-void onFailsafe() {
-    robot.state.requestedMode = DriveModeType::Idle;
-    
-    if (robot.hw.indicator) {
-        robot.hw.indicator->setIndication(LEDIndication::Failsafe);
-    }
-    if (robot.hw.rotaryDisplay) {
-        robot.hw.rotaryDisplay->setMode(RotaryDisplayMode::Static);
-        robot.hw.rotaryDisplay->setAnimation(LEDStripAnimation::Failsafe);
-    }
-}
-
-void onOTAStatus(OTAStatus status) {
-    switch(status) {
-        case OTAStatus::Starting:
-            robot.state.requestedMode = DriveModeType::Idle;
-            if(robot.hw.rotaryDisplay) {
-                robot.hw.rotaryDisplay->setMode(RotaryDisplayMode::Static);
-                robot.hw.rotaryDisplay->setAnimation(LEDStripAnimation::Bootup);
-            }
-            break;
-        case OTAStatus::Waiting:
-            indicator.setIndication(LEDIndication::OTA_Waiting);
-            break;
-        case OTAStatus::Connected:
-            indicator.setIndication(LEDIndication::OTA_Connected);
-            break;
-        case OTAStatus::Updating:
-            indicator.setIndication(LEDIndication::OTA_Updating);
-            break;
-        case OTAStatus::Error:
-            indicator.playAnimation(LEDAnimation::ErrorAlert);
-            break;
-        case OTAStatus::Finished:
-            break;
-    }
-}
-
-bool shouldExitOtaMode() {
-    if(!receiver.isConnected()) return true;
-
-    const ReceiverChannels channels = receiver.getChannelsSnapshot();
-    const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
-    return !input.leftShoulderSwitch;
-}
 
 void setup() {
     Serial.begin(115200);
@@ -122,7 +61,6 @@ void setup() {
     receiver.connect();
     receiver.onDisconnect(onFailsafe);
 
-    // --- HARDWARE VERIFICATION ---
     bool hardwareOk = true;
 
     hardwareOk &= motorLeft.init();
@@ -155,9 +93,9 @@ void setup() {
     robot.hw.rotaryDisplay = &rotaryDisplay;
 
     xTaskCreatePinnedToCore(mainThread, "ControlLoop", 8192, NULL, 3, &mainTaskHandle, 0);
-    xTaskCreatePinnedToCore(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL, 1);
-    xTaskCreatePinnedToCore(LEDThread, "LED_Control", 2048, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(ReceiverThread, "CRSF_RX", 4096, NULL, 2, NULL, 0);
 
+    xTaskCreatePinnedToCore(LEDThread, "LED_Control", 2048, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(accelThread, "Accel_Task", 4096, nullptr, 4, &accelTaskHandle, 1);
 
     attachInterrupt(digitalPinToInterrupt(PIN_ACCEL1_INT1), accel1_isr, RISING);
@@ -166,18 +104,12 @@ void setup() {
     xTaskNotifyGive(accelTaskHandle);
 }
 
-void loop() {
-    vTaskDelete(NULL);
-}
-
 // ====================================================================
 // TASK IMPLEMENTATIONS
 // ====================================================================
 
 void mainThread(void* pvParameters) {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_CONTROL_HZ);
-
+    
     modeHandler.update(robot);
     bool wasConnected = false;
 
@@ -245,7 +177,6 @@ void ReceiverThread(void* pvParameters) {
 // LED THREAD
 // ====================================================================
 void LEDThread(void* pvParameters) {
-    TickType_t lastWakeTime = xTaskGetTickCount();
     const TickType_t taskPeriod = pdMS_TO_TICKS(1000 / TASK_LED_HZ);
 
     while(true) {
@@ -255,17 +186,15 @@ void LEDThread(void* pvParameters) {
     }
 }
 
-// accelerometer data readout
 void accelThread(void* pvParameters) {
     while(true) {
-        // Vlákno zde spí a nekonzumuje žádný CPU čas. 
-        // Probudí se okamžitě, jakmile jakýkoliv ISR zavolá vTaskNotifyGiveFromISR.
+
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
         AccelData temp1, temp2;
         
         accel1.readData(temp1); 
-        robot.state.accel1 = temp1; // Zápis přes bezpečný ThreadSafe wrapper
+        robot.state.accel1 = temp1;
 
         accel2.readData(temp2);
         robot.state.accel2 = temp2;
@@ -273,6 +202,74 @@ void accelThread(void* pvParameters) {
         if (mainTaskHandle != nullptr) {
             xTaskNotifyGive(mainTaskHandle);
         }
-
     }
+}
+
+// ====================================================================
+// ARDUINO IDE LOOP DELETE
+// ====================================================================
+void loop() {
+    vTaskDelete(NULL);
+}
+
+// ====================================================================
+// SUPPORT FUNCTIONS
+// ====================================================================
+void IRAM_ATTR accel1_isr() {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(accelTaskHandle, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
+}
+
+void IRAM_ATTR accel2_isr() {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(accelTaskHandle, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
+}
+
+// --- Safety failsafe callback ---
+void onFailsafe() {
+    robot.state.requestedMode = DriveModeType::Idle;
+    
+    if (robot.hw.indicator) {
+        robot.hw.indicator->setIndication(LEDIndication::Failsafe);
+    }
+    if (robot.hw.rotaryDisplay) {
+        robot.hw.rotaryDisplay->setMode(RotaryDisplayMode::Static);
+        robot.hw.rotaryDisplay->setAnimation(LEDStripAnimation::Failsafe);
+    }
+}
+
+void onOTAStatus(OTAStatus status) {
+    switch(status) {
+        case OTAStatus::Starting:
+            robot.state.requestedMode = DriveModeType::Idle;
+            if(robot.hw.rotaryDisplay) {
+                robot.hw.rotaryDisplay->setMode(RotaryDisplayMode::Static);
+                robot.hw.rotaryDisplay->setAnimation(LEDStripAnimation::Bootup);
+            }
+            break;
+        case OTAStatus::Waiting:
+            indicator.setIndication(LEDIndication::OTA_Waiting);
+            break;
+        case OTAStatus::Connected:
+            indicator.setIndication(LEDIndication::OTA_Connected);
+            break;
+        case OTAStatus::Updating:
+            indicator.setIndication(LEDIndication::OTA_Updating);
+            break;
+        case OTAStatus::Error:
+            indicator.playAnimation(LEDAnimation::ErrorAlert);
+            break;
+        case OTAStatus::Finished:
+            break;
+    }
+}
+
+bool shouldExitOtaMode() {
+    if(!receiver.isConnected()) return true;
+
+    const ReceiverChannels channels = receiver.getChannelsSnapshot();
+    const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
+    return !input.leftShoulderSwitch;
 }
