@@ -118,4 +118,8 @@ void ForwardMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::Tele
     telemetry.accel2X = a2.xMps2;
     telemetry.accel2Y = a2.yMps2;
     telemetry.accel2Z = a2.zMps2;
+
+    telemetry.loopMinUs = robot.state.loopMinUs;
+    telemetry.loopMaxUs = robot.state.loopMaxUs;
+    telemetry.loopAvgUs = robot.state.loopAvgUs;
 }

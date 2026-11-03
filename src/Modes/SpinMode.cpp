@@ -206,4 +206,8 @@ void SpinMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::Telemet
 
     const float rpm = spinDirection_ * angularSpeedRadPerSec_ * (60.0f / TWO_PI_RADIANS);
     telemetry.rpm = static_cast<int16_t>(rpm);
+
+    telemetry.loopMinUs = robot.state.loopMinUs;
+    telemetry.loopMaxUs = robot.state.loopMaxUs;
+    telemetry.loopAvgUs = robot.state.loopAvgUs;
 }

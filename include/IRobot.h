@@ -24,6 +24,12 @@ struct RobotState {
     ThreadSafe<float> escLeftVolts{0.0f};
     ThreadSafe<int32_t> escRightRpm{0};
     ThreadSafe<float> escRightVolts{0.0f};
+
+    // debugging (ok to delete later)
+    ThreadSafe<uint16_t> loopMinUs{0};
+    ThreadSafe<uint16_t> loopMaxUs{0};
+    ThreadSafe<uint16_t> loopAvgUs{0};
+
 };
 
 struct RobotHardware {

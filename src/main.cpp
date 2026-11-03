@@ -113,8 +113,16 @@ void mainThread(void* pvParameters) {
     modeHandler.update(robot);
     bool wasConnected = false;
 
+    // Proměnné pro statistiku běhu smyčky
+    uint32_t lastStatMs = millis();
+    uint32_t minLoopUs = UINT32_MAX;
+    uint32_t maxLoopUs = 0;
+    uint32_t sumLoopUs = 0;
+    uint32_t loopCount = 0;
+
     while(true) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        uint32_t loopStartUs = micros(); // Začátek měření
 
         robot.state.currentMs = millis();
         robot.state.isConnected = receiver.isConnected();
@@ -157,6 +165,28 @@ void mainThread(void* pvParameters) {
 
         if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {
             telemetryManager.sendTelemetry(robot, *currentMode, receiver); 
+        }
+
+        // Konec měření a kalkulace statistik smyčky
+        uint32_t loopEndUs = micros();
+        uint32_t loopDurationUs = loopEndUs - loopStartUs;
+
+        if (loopDurationUs < minLoopUs) minLoopUs = loopDurationUs;
+        if (loopDurationUs > maxLoopUs) maxLoopUs = loopDurationUs;
+        sumLoopUs += loopDurationUs;
+        loopCount++;
+
+        uint32_t nowMs = millis();
+        if (nowMs - lastStatMs >= 5000 && loopCount > 0) {
+            robot.state.loopMinUs = minLoopUs;
+            robot.state.loopMaxUs = maxLoopUs;
+            robot.state.loopAvgUs = sumLoopUs / loopCount;
+            
+            minLoopUs = UINT32_MAX;
+            maxLoopUs = 0;
+            sumLoopUs = 0;
+            loopCount = 0;
+            lastStatMs = nowMs;
         }
     }
 }

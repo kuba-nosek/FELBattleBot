@@ -143,4 +143,7 @@ constexpr uint32_t TELEMETRY_INTERVAL_MS = 500;
     X(escLeftRpm, int32_t)                                                                                             \
     X(escLeftVolts, float)                                                                                             \
     X(escRightRpm, int32_t)                                                                                            \
-    X(escRightVolts, float)                                                                                             
+    X(escRightVolts, float)                                                                                            \
+    X(loopMinUs, uint16_t)                                                                                             \
+    X(loopMaxUs, uint16_t)                                                                                             \
+    X(loopAvgUs, uint16_t)
