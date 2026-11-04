@@ -186,21 +186,32 @@ void LEDThread(void* pvParameters) {
     }
 }
 
+// ====================================================================
+// ACCEL THREAD
+// ====================================================================
 void accelThread(void* pvParameters) {
+    uint32_t lastReadUs = 0;
+    // TODO dat do configu a sychronizovat s nastavenim akcelerometru
+    const uint32_t RATE_LIMIT_US = 800; // Spodní hranice ochrany proti 2000Hz double-readům
+    
     while(true) {
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(5));
+        uint32_t nowUs = micros();
 
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (nowUs - lastReadUs >= RATE_LIMIT_US) {
+            lastReadUs = nowUs;
 
-        AccelData temp1, temp2;
-        
-        accel1.readData(temp1); 
-        robot.state.accel1 = temp1;
+            AccelData temp1, temp2;
+            
+            accel1.readData(temp1); 
+            robot.state.accel1 = temp1;
 
-        accel2.readData(temp2);
-        robot.state.accel2 = temp2;
+            accel2.readData(temp2);
+            robot.state.accel2 = temp2;
 
-        if (mainTaskHandle != nullptr) {
-            xTaskNotifyGive(mainTaskHandle);
+            if (mainTaskHandle != nullptr) {
+                xTaskNotifyGive(mainTaskHandle);
+            }
         }
     }
 }
