@@ -119,10 +119,24 @@ void mainThread(void* pvParameters) {
     uint32_t maxLoopUs = 0;
     uint32_t sumLoopUs = 0;
     uint32_t loopCount = 0;
+    
+    // Proměnná pro uchování času startu předchozí iterace
+    uint32_t previousLoopStartUs = 0;
 
     while(true) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        uint32_t loopStartUs = micros(); // Začátek měření
+        uint32_t currentLoopStartUs = micros(); // Začátek měření
+
+        // Kalkulace periody (času mezi tímto a předchozím během)
+        if (previousLoopStartUs != 0) {
+            uint32_t loopDeltaUs = currentLoopStartUs - previousLoopStartUs;
+            
+            if (loopDeltaUs < minLoopUs) minLoopUs = loopDeltaUs;
+            if (loopDeltaUs > maxLoopUs) maxLoopUs = loopDeltaUs;
+            sumLoopUs += loopDeltaUs;
+            loopCount++;
+        }
+        previousLoopStartUs = currentLoopStartUs;
 
         robot.state.currentMs = millis();
         robot.state.isConnected = receiver.isConnected();
@@ -167,15 +181,6 @@ void mainThread(void* pvParameters) {
             telemetryManager.sendTelemetry(robot, *currentMode, receiver); 
         }
 
-        // Konec měření a kalkulace statistik smyčky
-        uint32_t loopEndUs = micros();
-        uint32_t loopDurationUs = loopEndUs - loopStartUs;
-
-        if (loopDurationUs < minLoopUs) minLoopUs = loopDurationUs;
-        if (loopDurationUs > maxLoopUs) maxLoopUs = loopDurationUs;
-        sumLoopUs += loopDurationUs;
-        loopCount++;
-
         uint32_t nowMs = millis();
         if (nowMs - lastStatMs >= 5000 && loopCount > 0) {
             robot.state.loopMinUs = minLoopUs;
@@ -216,21 +221,32 @@ void LEDThread(void* pvParameters) {
     }
 }
 
+// ====================================================================
+// ACCEL THREAD
+// ====================================================================
 void accelThread(void* pvParameters) {
+    uint32_t lastReadUs = 0;
+    // TODO dat do configu a sychronizovat s nastavenim akcelerometru
+    const uint32_t RATE_LIMIT_US = 800; // Spodní hranice ochrany proti 2000Hz double-readům
+    
     while(true) {
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(5));
+        uint32_t nowUs = micros();
 
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (nowUs - lastReadUs >= RATE_LIMIT_US) {
+            lastReadUs = nowUs;
 
-        AccelData temp1, temp2;
-        
-        accel1.readData(temp1); 
-        robot.state.accel1 = temp1;
+            AccelData temp1, temp2;
+            
+            accel1.readData(temp1); 
+            robot.state.accel1 = temp1;
 
-        accel2.readData(temp2);
-        robot.state.accel2 = temp2;
+            accel2.readData(temp2);
+            robot.state.accel2 = temp2;
 
-        if (mainTaskHandle != nullptr) {
-            xTaskNotifyGive(mainTaskHandle);
+            if (mainTaskHandle != nullptr) {
+                xTaskNotifyGive(mainTaskHandle);
+            }
         }
     }
 }
@@ -245,6 +261,7 @@ void loop() {
 // ====================================================================
 // SUPPORT FUNCTIONS
 // ====================================================================
+
 void IRAM_ATTR accel1_isr() {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     vTaskNotifyGiveFromISR(accelTaskHandle, &xHigherPriorityTaskWoken);

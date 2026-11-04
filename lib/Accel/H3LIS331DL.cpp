@@ -33,8 +33,8 @@ bool H3LIS331DL::init() {
         writeConfig(CTRL_REG2, 0x00);
         // interrupt
         writeConfig(CTRL_REG3, 0x02); 
-        // 0xB0 = 1011 0000 -> BDU=1, FS=11 (400g)
-        writeConfig(CTRL_REG4, 0xB0); 
+        // 0x90 -> BDU=1, FS=01 (200g)
+        writeConfig(CTRL_REG4, 0x90); 
         writeConfig(CTRL_REG5, 0x00);
 
         _isAvailable = true;

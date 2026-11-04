@@ -119,9 +119,11 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     const int32_t power = getPower(input.leftStickVertical, input.left3StateSwitch);
     int32_t amplitude = getPower(input.rightStickVertical, input.left3StateSwitch);
 
+    /*
     if (Kinematics::getAverageZ(a1, a2) < 0.0f) {
         amplitude = -amplitude;
     }
+    */
 
     const float sensorRadiusMeters = calculateSensorRadiusMeters(input.leftPot);
 
