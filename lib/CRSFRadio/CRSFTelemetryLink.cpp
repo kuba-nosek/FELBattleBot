@@ -38,6 +38,20 @@ namespace {
 
 CRSFTelemetryLink::CRSFTelemetryLink(HardwareSerial& serial) : serial_(serial) {}
 
+void CRSFTelemetryLink::connect() {
+    // Pokud je UART sdílen s CRSFReceiver, sběrnice je již inicializována jím.
+    // Pro zcela samostatné použití by se zde volalo: serial_.begin(420000, SERIAL_8N1, rx, tx);
+}
+
+bool CRSFTelemetryLink::isConnected() const {
+    // UART bez handshake neví o stavu protistrany, lokální port je vždy připraven odesílat.
+    return true;
+}
+
+void CRSFTelemetryLink::onDisconnect(TelemetryDisconnectCallback callback) {
+    disconnectCallback_ = callback;
+}
+
 bool CRSFTelemetryLink::sendTelemetry(const TelemetryData& data) {
     uint8_t frame[MAX_FRAME_SIZE];
     
