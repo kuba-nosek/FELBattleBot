@@ -6,7 +6,7 @@ namespace {
     constexpr uint8_t CRSF_ADDRESS_FLIGHT_CONTROLLER = 0xC8;
     constexpr uint8_t CRSF_FRAME_TYPE_ARDUPILOT = 0x80;
     constexpr uint8_t PRIVATE_SUBTYPE = 0xF3;
-    constexpr uint8_t PROTOCOL_VERSION = 1;
+    constexpr uint8_t PROTOCOL_VERSION = 2;
     constexpr size_t MAX_FRAME_SIZE = 64; // Dostatečně velký buffer pro payload
 
     // Pomocné funkce pro zápis Big-Endian dat

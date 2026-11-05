@@ -8,7 +8,6 @@
 #include "Core/ModeHandler.h"
 #include "Core/TelemetryManager.h"
 #include "Utils/SignalProcessing.h"
-#include "Utils/HardwareMonitor.h"
 
 #include "H3LIS331DL.h"
 #include "CRSFReceiver.h"
