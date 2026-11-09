@@ -2,8 +2,16 @@
 #include <SPI.h>
 #include <WiFi.h>
 
+#include "config.h"
+
+#include "Core/ModeHandler.h"
+#include "Core/TelemetryManager.h"
+#include "Utils/SignalProcessing.h"
+
 #include "H3LIS331DL.h"
 #include "CRSFReceiver.h"
+#include "CRSFTelemetryLink.h"
+#include "AM32Motor.h"
 #include "IndicatorLED.h"
 #include "POVDisplay.h"
 #include "Core/ModeHandler.h"
@@ -20,7 +28,11 @@ AM32Motor motorLeft(PIN_MOTOR_L, MOTOR_LEFT_REVERSED, MOTOR_POLE_PAIRS);
 AM32Motor motorRight(PIN_MOTOR_R, MOTOR_RIGHT_REVERSED, MOTOR_POLE_PAIRS);
 H3LIS331DL accel1(PIN_SPI_CS1, ACCEL1_OFFSET_X_G, ACCEL1_OFFSET_Y_G, ACCEL1_OFFSET_Z_G);
 H3LIS331DL accel2(PIN_SPI_CS2, ACCEL2_OFFSET_X_G, ACCEL2_OFFSET_Y_G, ACCEL2_OFFSET_Z_G);
-CRSFReceiver receiver(PIN_CRSF_RX, PIN_CRSF_TX);
+
+HardwareSerial crsfSerial(1);
+CRSFReceiver receiver(crsfSerial, PIN_CRSF_RX, PIN_CRSF_TX);
+CRSFTelemetryLink telemetryLink(crsfSerial);
+
 IndicatorLED indicator(PIN_LED);
 POVDisplay povDisplay(PIN_LED_STRIP);
 
@@ -88,7 +100,12 @@ void setup() {
 
     robot.hw.leftMotor = &motorLeft;
     robot.hw.rightMotor = &motorRight;
+    robot.hw.leftEscFeedback = &motorLeft;
+    robot.hw.rightEscFeedback = &motorRight;
     robot.hw.rx = &receiver;
+    robot.hw.telemetryLink = &telemetryLink;
+    robot.hw.accel1 = &accel1;
+    robot.hw.accel2 = &accel2;
     robot.hw.indicator = &indicator;
     robot.hw.povDisplay = &povDisplay;
 
@@ -117,12 +134,14 @@ void mainThread(void* pvParameters) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
         robot.state.currentMs = millis();
-        robot.state.isConnected = receiver.isConnected();
+
+        bool rxConnected = receiver.isConnected();
+        robot.state.isConnected = rxConnected;
 
         const ReceiverChannels channels = receiver.getChannelsSnapshot();
         const ReceiverInput input = SignalProcessing::processReceiverInput(channels);
 
-        if(robot.state.isConnected) {
+        if(rxConnected) {
             DriveModeType decodedMode = modeHandler.decodeMode(input.leftSwitch, input.rightSwitch);
             robot.state.requestedMode = decodedMode;
             
@@ -130,23 +149,33 @@ void mainThread(void* pvParameters) {
                 enterOtaMode({onOTAStatus, shouldExitOtaMode});
             }
         }
+    
+        if (robot.hw.accel1 && robot.hw.accel1->isAvailable()) {
+            AccelData temp;
+            robot.hw.accel1->readData(temp);
+            robot.state.accel1 = temp;
+        }
+        if (robot.hw.accel2 && robot.hw.accel2->isAvailable()) {
+            AccelData temp;
+            robot.hw.accel2->readData(temp);
+            robot.state.accel2 = temp;
+        }
+        if (robot.hw.leftEscFeedback && robot.hw.leftEscFeedback->isFeedbackValid()) {
+            robot.state.escLeftRpm = robot.hw.leftEscFeedback->getRpm();
+            robot.state.escLeftVolts = robot.hw.leftEscFeedback->getVoltage();
+            // robot.state.escLeftAmps = robot.hw.leftEscFeedback->getCurrent();
+        }
+        if (robot.hw.rightEscFeedback && robot.hw.rightEscFeedback->isFeedbackValid()) {
+            robot.state.escRightRpm = robot.hw.rightEscFeedback->getRpm();
+            robot.state.escRightVolts = robot.hw.rightEscFeedback->getVoltage();
+            // robot.state.escRightAmps = robot.hw.rightEscFeedback->getCurrent();
+        }
 
         const bool modeChanged = modeHandler.update(robot);
         IRobotMode* currentMode = modeHandler.getCurrentMode();
         currentMode->execute(robot, input);
-
-        if(robot.state.isConnected) {
-            if(motorLeft.isTelemetryValid()) {
-                robot.state.escLeftRpm = motorLeft.getRpm();
-                robot.state.escLeftVolts = motorLeft.getVoltage();
-            }
-            if(motorRight.isTelemetryValid()) {
-                robot.state.escRightRpm = motorRight.getRpm();
-                robot.state.escRightVolts = motorRight.getVoltage();
-            }
-        }
         
-        if(!robot.state.isConnected) {
+        if(!rxConnected) {
             if (robot.hw.indicator) {
                 robot.hw.indicator->setIndication(LEDIndication::Failsafe);
             }
@@ -156,7 +185,7 @@ void mainThread(void* pvParameters) {
         wasConnected = robot.state.isConnected;
 
         if(telemetryManager.shouldSendTelemetry(robot, modeChanged)) {
-            telemetryManager.sendTelemetry(robot, *currentMode, receiver); 
+            telemetryManager.sendTelemetry(robot, *currentMode); 
         }
     }
 }

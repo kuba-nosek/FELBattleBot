@@ -105,17 +105,7 @@ void ForwardMode::execute(RobotCore& robot, const ReceiverInput& input) {
     robot.hw.rightMotor->setSpeed(static_cast<int16_t>(powers.right), robot.state.currentMs);
 }
 
-void ForwardMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const {
-    telemetry.mode = DriveModeType::Forward;
-    
-    AccelData a1 = robot.state.accel1;
-    AccelData a2 = robot.state.accel2;
-    
-    telemetry.accel1X = a1.xMps2;
-    telemetry.accel1Y = a1.yMps2;
-    telemetry.accel1Z = a1.zMps2;
-    
-    telemetry.accel2X = a2.xMps2;
-    telemetry.accel2Y = a2.yMps2;
-    telemetry.accel2Z = a2.zMps2;
+void ForwardMode::fillTelemetryData(const RobotCore& robot, TelemetryData& data) const {
+    const DriveModeType currentMode = robot.state.currentMode;
+    data.mode = static_cast<uint8_t>(currentMode);
 }

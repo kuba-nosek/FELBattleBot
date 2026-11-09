@@ -1,6 +1,7 @@
 #include "SpinMode.h"
 #include "config.h"
 #include "Utils/Kinematics.h"
+#include "Utils/TelemetryUtils.h"
 
 #include <Arduino.h>
 #include <cmath>
@@ -185,25 +186,11 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
     }
 }
 
-void SpinMode::sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const {
-    telemetry.mode = DriveModeType::Spin;
-
-    AccelData a1 = robot.state.accel1;
-    AccelData a2 = robot.state.accel2;
-    
-    telemetry.accel1X = a1.xMps2;
-    telemetry.accel1Y = a1.yMps2;
-    telemetry.accel1Z = a1.zMps2;
-    
-    telemetry.accel2X = a2.xMps2;
-    telemetry.accel2Y = a2.yMps2;
-    telemetry.accel2Z = a2.zMps2;
-
-    telemetry.escLeftRpm = robot.state.escLeftRpm;
-    telemetry.escLeftVolts = robot.state.escLeftVolts;
-    telemetry.escRightRpm = robot.state.escRightRpm;
-    telemetry.escRightVolts = robot.state.escRightVolts;
-
+void SpinMode::fillTelemetryData(const RobotCore& robot, TelemetryData& data) const {
     const float rpm = spinDirection_ * angularSpeedRadPerSec_ * (60.0f / TWO_PI_RADIANS);
-    telemetry.rpm = static_cast<int16_t>(rpm);
+
+    const DriveModeType currentMode = robot.state.currentMode;
+    data.mode = static_cast<uint8_t>(currentMode);
+    TelemetryUtils::fillAccelerometerData(robot, data);
+    data.rpm = rpm;
 }

@@ -4,18 +4,25 @@
 bool TelemetryManager::shouldSendTelemetry(const RobotCore& robot, bool modeChanged) {
     if(modeChanged) immediateSendPending_ = true;
     
-    if(!RobotConfig::TELEMETRY_ENABLED || !robot.state.isConnected) return false;
+    if(!RobotConfig::TELEMETRY_ENABLED || !robot.hw.telemetryLink || !robot.state.isConnected) {
+        return false;
+    }
+
+    if(!robot.hw.telemetryLink->isConnected()) {
+        return false;
+    }
 
     const uint32_t timeSinceLastSendMs = robot.state.currentMs - lastSentMs_;
-    return immediateSendPending_ || timeSinceLastSendMs >= RobotConfig::TELEMETRY_INTERVAL_MS;
+    return immediateSendPending_ || (timeSinceLastSendMs >= RobotConfig::TELEMETRY_INTERVAL_MS);
 }
 
-void TelemetryManager::sendTelemetry(RobotCore& robot, const IRobotMode& activeMode, CRSFReceiver& receiver) {
-    BattlebotTelemetry::TelemetryData telemetry{};
+void TelemetryManager::sendTelemetry(const RobotCore& robot, const IRobotMode& activeMode) {
+    if (!robot.hw.telemetryLink) return;
 
-    activeMode.sendTelemetry(robot, telemetry);
+    currentPayload_ = TelemetryData{};
+    activeMode.fillTelemetryData(robot, currentPayload_);
 
-    if(receiver.sendBattlebotTelemetry(telemetry)) {
+    if (robot.hw.telemetryLink->sendTelemetry(currentPayload_)) {
         lastSentMs_ = robot.state.currentMs;
         immediateSendPending_ = false;
     }

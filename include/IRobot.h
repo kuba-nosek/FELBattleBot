@@ -1,11 +1,14 @@
 #pragma once
+
 #include "IAccel.h"
 #include "IReceiver.h"
+#include "ITelemetryLink.h"
+#include "IMotor.h"
+#include "IEscFeedback.h"
+
 #include "IndicatorLED.h"
 #include "POVDisplay.h"
-#include "BattlebotTelemetry.h"
 #include "DriveModeType.h"
-#include "IMotor.h"
 #include "ReceiverInput.h"
 #include "ThreadSafe.h"
 
@@ -15,6 +18,7 @@ struct RobotState {
     ThreadSafe<uint32_t> currentMs{0};
     ThreadSafe<bool> isConnected{false};
     ThreadSafe<DriveModeType> requestedMode{DriveModeType::Idle};
+    ThreadSafe<DriveModeType> currentMode{DriveModeType::Idle};
     
     ThreadSafe<AccelData> accel1{};
     ThreadSafe<AccelData> accel2{};
@@ -29,7 +33,12 @@ struct RobotState {
 struct RobotHardware {
     IMotor* leftMotor = nullptr;
     IMotor* rightMotor = nullptr;
+    IEscFeedback* leftEscFeedback = nullptr;
+    IEscFeedback* rightEscFeedback = nullptr;
     IReceiver* rx = nullptr;
+    ITelemetryLink* telemetryLink = nullptr;
+    IAccel* accel1 = nullptr;
+    IAccel* accel2 = nullptr;
     IndicatorLED* indicator = nullptr;
     POVDisplay* povDisplay = nullptr;
 };
@@ -47,5 +56,6 @@ class IRobotMode {
 
     virtual void execute(RobotCore& robot, const ReceiverInput& input) = 0;
 
-    virtual void sendTelemetry(const RobotCore& robot, BattlebotTelemetry::TelemetryData& telemetry) const = 0;
+    virtual void fillTelemetryData(const RobotCore& robot, TelemetryData& data) const = 0;
+
 };
