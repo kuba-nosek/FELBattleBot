@@ -7,15 +7,15 @@
 #include <driver/rmt_tx.h>
 #include <stdint.h>
 
-enum class RotaryDisplayMode : uint8_t { Static, Spinning };
+enum class POVDisplayMode : uint8_t { Static, Spinning };
 
-class RotaryDisplay {
+class POVDisplay {
   public:
-    explicit RotaryDisplay(uint8_t pin);
-    ~RotaryDisplay();
+    explicit POVDisplay(uint8_t pin);
+    ~POVDisplay();
 
     void init();
-    void setMode(RotaryDisplayMode mode);
+    void setMode(POVDisplayMode mode);
     void setAnimation(LEDStripAnimation animation);
     void setAngularVelocity(float radiansPerSecond);
     void update();
@@ -23,7 +23,7 @@ class RotaryDisplay {
   private:
     uint8_t _pin;
 
-    RotaryDisplayMode _mode;
+    POVDisplayMode _mode;
     LEDStripAnimation _animation;
     float _angularVelocityRadPerSec;
     bool _modeChanged;

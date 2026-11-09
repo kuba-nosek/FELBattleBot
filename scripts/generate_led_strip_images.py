@@ -11,7 +11,7 @@ try:
     from PIL import Image
 except ImportError:
     print(
-        "Pillow is required to generate rotary display LED-strip images. "
+        "Pillow is required to generate POV LED-strip images. "
         "Install it with: python3 -m pip install Pillow",
         file=sys.stderr,
     )
@@ -21,8 +21,8 @@ except ImportError:
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "include" / "config.h"
 ASSET_DIRECTORY = ROOT / "assets" / "led-strip"
-HEADER_PATH = ROOT / "lib" / "RotaryDisplay" / "GeneratedLEDStripImages.h"
-SOURCE_PATH = ROOT / "lib" / "RotaryDisplay" / "GeneratedLEDStripImages.cpp"
+HEADER_PATH = ROOT / "lib" / "POVDisplay" / "GeneratedLEDStripImages.h"
+SOURCE_PATH = ROOT / "lib" / "POVDisplay" / "GeneratedLEDStripImages.cpp"
 SUPPORTED_EXTENSIONS = {".jpeg", ".jpg", ".png"}
 MAX_USER_IMAGES = 4
 ANGULAR_SAMPLES_PER_SECTOR = 4
@@ -333,7 +333,7 @@ def generate(check=False, config_path=CONFIG_PATH, asset_directory=ASSET_DIRECTO
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate compile-time rotary display LED-strip images")
+    parser = argparse.ArgumentParser(description="Generate compile-time POV LED-strip images")
     parser.add_argument("--check", action="store_true", help="fail instead of writing when generated files are stale")
     arguments = parser.parse_args()
     generate(check=arguments.check)

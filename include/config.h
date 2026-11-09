@@ -81,7 +81,7 @@ constexpr int32_t FORWARD_MAX_MOVING_TURN_PERCENT = 40;
 constexpr int32_t FORWARD_MAX_STANDING_TURN_POWER = 50;
 
 // ==========================================
-// 8. ROTARY DISPLAY LED STRIP
+// 8. POV LED STRIP
 // ==========================================
 constexpr bool USE_LED_STRIP = true;
 // Physical LEDs along one radius, ordered from the outer edge toward the axis.
@@ -92,10 +92,10 @@ constexpr uint8_t LED_STRIP_SECTOR_DIVISORS[LED_STRIP_LED_COUNT] = {1, 1, 1, 1, 
 constexpr uint16_t LED_STRIP_REFRESH_HZ = 1200;
 constexpr uint8_t LED_STRIP_BRIGHTNESS = 32;
 
-static_assert(LED_STRIP_LED_COUNT > 1, "The rotary display needs at least two LEDs");
-static_assert(LED_STRIP_SECTOR_COUNT > 0, "The rotary display needs at least one angular sector");
-static_assert(LED_STRIP_REFRESH_HZ > 0, "The rotary display refresh rate must be positive");
-static_assert(LED_STRIP_REFRESH_HZ <= 1000000, "The rotary display refresh interval must be at least one microsecond");
+static_assert(LED_STRIP_LED_COUNT > 1, "The POV strip needs at least two LEDs");
+static_assert(LED_STRIP_SECTOR_COUNT > 0, "The POV strip needs at least one angular sector");
+static_assert(LED_STRIP_REFRESH_HZ > 0, "The POV strip refresh rate must be positive");
+static_assert(LED_STRIP_REFRESH_HZ <= 1000000, "The POV strip refresh interval must be at least one microsecond");
 
 // ==========================================
 // 9. TELEMETRY

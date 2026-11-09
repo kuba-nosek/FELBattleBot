@@ -12,7 +12,7 @@ system_python = Path("/usr/bin/python3")
 if not system_python.exists():
     discovered_python = shutil.which("python3")
     if not discovered_python:
-        raise RuntimeError("python3 is required to generate rotary display LED-strip images")
+        raise RuntimeError("python3 is required to generate POV LED-strip images")
     system_python = Path(discovered_python)
 
 result = subprocess.run([str(system_python), str(generator)], cwd=project_directory, text=True)
