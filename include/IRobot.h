@@ -18,6 +18,7 @@ struct RobotState {
     ThreadSafe<uint32_t> currentMs{0};
     ThreadSafe<bool> isConnected{false};
     ThreadSafe<DriveModeType> requestedMode{DriveModeType::Idle};
+    ThreadSafe<DriveModeType> currentMode{DriveModeType::Idle};
     
     ThreadSafe<AccelData> accel1{};
     ThreadSafe<AccelData> accel2{};

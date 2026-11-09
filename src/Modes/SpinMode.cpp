@@ -185,23 +185,10 @@ void SpinMode::execute(RobotCore& robot, const ReceiverInput& input) {
 }
 
 void SpinMode::fillTelemetryData(const RobotCore& robot, TelemetryData& data) const {
- 
-    const AccelData a1 = robot.state.accel1;
-    const AccelData a2 = robot.state.accel2;
-
     const float rpm = spinDirection_ * angularSpeedRadPerSec_ * (60.0f / TWO_PI_RADIANS);
 
-    // fill common data
-    TelemetryUtils::fillCommonTelemetryData(robot, data);
-
-    // fill mode specific data
-    data.accel1X = a1.xMps2;
-    data.accel1Y = a1.yMps2;
-    data.accel1Z = a1.zMps2;
-
-    data.accel2X = a2.xMps2;
-    data.accel2Y = a2.yMps2;
-    data.accel2Z = a2.zMps2;
-
+    const DriveModeType currentMode = robot.state.currentMode;
+    data.mode = static_cast<uint8_t>(currentMode);
+    TelemetryUtils::fillAccelerometerData(robot, data);
     data.rpm = rpm;
 }

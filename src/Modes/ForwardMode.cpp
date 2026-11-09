@@ -1,7 +1,6 @@
 #include "ForwardMode.h"
 
 #include "config.h"
-#include "Utils/TelemetryUtils.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -107,9 +106,6 @@ void ForwardMode::execute(RobotCore& robot, const ReceiverInput& input) {
 }
 
 void ForwardMode::fillTelemetryData(const RobotCore& robot, TelemetryData& data) const {
-    // fill common data
-    TelemetryUtils::fillCommonTelemetryData(robot, data);
-
-    // fill mode specific data
-
+    const DriveModeType currentMode = robot.state.currentMode;
+    data.mode = static_cast<uint8_t>(currentMode);
 }

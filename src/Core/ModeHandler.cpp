@@ -1,13 +1,15 @@
 #include "Core/ModeHandler.h"
 
-ModeHandler::ModeHandler() : _currentMode(&_idleMode), _currentModeType(DriveModeType::Idle) {}
+ModeHandler::ModeHandler() : _currentMode(&_idleMode) {}
 
 bool ModeHandler::update(RobotCore& robot) {
-    if(robot.state.requestedMode == _currentModeType) {
+    const DriveModeType requestedMode = robot.state.requestedMode;
+    const DriveModeType currentMode = robot.state.currentMode;
+    if(requestedMode == currentMode) {
         return false;
     }
 
-    changeMode(robot.state.requestedMode, robot);
+    changeMode(requestedMode, robot);
     return true;
 }
 
@@ -20,8 +22,6 @@ DriveModeType ModeHandler::decodeMode(bool leftSwitch, bool rightSwitch) const {
 }
 
 void ModeHandler::changeMode(DriveModeType newMode, RobotCore& robot) {
-    _currentModeType = newMode;
-
     switch(newMode) {
         case DriveModeType::Forward:
             _currentMode = &_forwardMode;
@@ -31,16 +31,14 @@ void ModeHandler::changeMode(DriveModeType newMode, RobotCore& robot) {
             break;
         default:
             _currentMode = &_idleMode;
-            _currentModeType = DriveModeType::Idle;
+            newMode = DriveModeType::Idle;
             break;
     }
 
+    robot.state.currentMode = newMode;
+
     // Trigger initialization routine of the new mode
     _currentMode->init(robot);
-}
-
-DriveModeType ModeHandler::getCurrentModeID() const {
-    return _currentModeType;
 }
 
 IRobotMode* ModeHandler::getCurrentMode() const {
