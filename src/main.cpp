@@ -149,17 +149,7 @@ void mainThread(void* pvParameters) {
                 enterOtaMode({onOTAStatus, shouldExitOtaMode});
             }
         }
-    
-        if (robot.hw.accel1 && robot.hw.accel1->isAvailable()) {
-            AccelData temp;
-            robot.hw.accel1->readData(temp);
-            robot.state.accel1 = temp;
-        }
-        if (robot.hw.accel2 && robot.hw.accel2->isAvailable()) {
-            AccelData temp;
-            robot.hw.accel2->readData(temp);
-            robot.state.accel2 = temp;
-        }
+
         if (robot.hw.leftEscFeedback && robot.hw.leftEscFeedback->isFeedbackValid()) {
             robot.state.escLeftRpm = robot.hw.leftEscFeedback->getRpm();
             robot.state.escLeftVolts = robot.hw.leftEscFeedback->getVoltage();
